@@ -1,5 +1,0 @@
-192.168.8.8 a.example.org
-fd11:88::1 a.example.org
-fd11:88::2 a.example.org
-
-192.168.8.1 gw.example.org

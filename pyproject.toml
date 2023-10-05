@@ -20,7 +20,7 @@ classifiers = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/pypa/sampleproject"
+"Homepage" = "https://github.com/kulongwangzhi85/flexidns/tree/main"
 
 [project.optional-dependencies]
 uvloop = ["uvloop >= 0.17.0"]
@@ -43,8 +43,8 @@ dependencies = { file = ["requirements.txt"] }
 'lib/systemd/system' = ['flexidns.service']
 'etc/flexidns/ssl' = [
     'src/etc/flexidns/ssl/ca.cer',
-    'src/etc/flexidns/ssl/guocl.cc.cer',
-    'src/etc/flexidns/ssl/guocl.cc.key',
+    'src/etc/flexidns/ssl/xxx.xx.cer',
+    'src/etc/flexidns/ssl/xxx.xx.key',
 ]
 'etc/flexidns/list' = [
     'src/etc/flexidns/list/anti-ad-domains.txt',
