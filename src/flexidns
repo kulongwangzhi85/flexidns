@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+
+from os import getuid, _exit
+import argparse
+
+def start(configfile):
+    from FlexiDNS.dnsmain import main
+    main(configfile)
+
+
+def stop():
+    from FlexiDNS.dnsmain import stop_server
+    stop_server()
+
+
+def cache_cli(args):
+    from FlexiDNS.cacheoperate import CacheOperate
+    co = CacheOperate()
+    co.cache(args)
+
+
+def rules_cli(args):
+    from FlexiDNS.cacheoperate import CacheOperate
+    co = CacheOperate()
+    co.rules(args)
+
+
+def version():
+    from FlexiDNS import __version__
+    print(__version__)
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        prog='FlexiDNS',
+        add_help=True,
+        description='Python Code Dns Server Cmd Line Options',
+        epilog='Copyright (c) 2020, 2021, HomePage https://github.com/2020-2021/PyDNS'
+    )
+
+    sub_parser = parser.add_subparsers(
+        title='flexidns cli',
+        metavar='',
+        help='flexidns server server operate command, use {start, stop, cache, rules, version} -h/--help for more information'
+    )
+    cache_parser = sub_parser.add_parser('cache', help='dns cache operate cli')
+
+    sub_subparser = cache_parser.add_subparsers(title='cache subcommands', metavar='')
+    show_cmd = sub_subparser.add_parser('show', help='show dns cache')
+    group = show_cmd.add_mutually_exclusive_group(required=True)
+    group.add_argument('-n', '--name', nargs='+', metavar='<domain name>', dest='qname',
+                       help='show one dns domain name record', default=None, action='store')
+    group.add_argument('-a', '--all', help='show all dns domain name record',
+                       default=False, action='store_true')
+    show_cmd.set_defaults(show_func=cache_cli)
+
+    delete_cmd = sub_subparser.add_parser('delete', help='delete dns cache')
+    delete_cmd.add_argument('-n', '--name', nargs='+', metavar='<domain name>', dest='qname',
+                            help='delete one dns domain name record', default=None, action='store')
+    delete_cmd.set_defaults(delete_func=cache_cli)
+
+    start_parser = sub_parser.add_parser('start', help='start dns server')
+    start_parser.add_argument('-c', '--config', type=str, help='dns server config file',
+                              action='store', required=True, metavar='<toml config file>')
+    start_parser.set_defaults(func=start)
+
+    stop_parser = sub_parser.add_parser('stop', help='stop dns server')
+    stop_parser.set_defaults(func=stop)
+
+    rule_group = sub_parser.add_parser('rules', help='domain name rule operate cli')
+    rule_me_group = rule_group.add_mutually_exclusive_group(required=True)
+    rule_me_group.add_argument('-n', '--name', nargs='+', metavar='<domain name>', dest='name', action='extend', help='view or modify specitied domain name rule information')
+    rule_me_group.add_argument('-d', '--delete', nargs='+', metavar='<domain name>', dest='delete', action='extend', help='delete specitied domain name rule from rules cacheed')
+    rule_group.add_argument('-r', '--rule', type=str, metavar='<new rule>',dest='rule', action='store', help='modify rule to new rule')
+    rule_me_group.add_argument('-c', '--count', default=False, action='store_true', help='view rule counts')
+    rule_me_group.add_argument('-s', '--show', dest='show', action='store_true', default=False, help='display dns rules')
+    rule_group.set_defaults(rule_func=rules_cli)
+
+    version_parser = sub_parser.add_parser('version', help='display FlexiDNS version')
+    version_parser.set_defaults(func=version)
+
+    return parser
+
+
+if __name__ == '__main__':
+    from sys import stderr
+    uid = getuid()
+    if uid != 0:
+        print('Please run as root', file=stderr, flush=True)
+        _exit(1)
+    parser = parse_arguments()
+    args = parser.parse_args()
+    if hasattr(args, 'func'):
+        if args.func == start:
+            if args.config is not None:
+                args.func(args.config)
+            else:
+                print("Please provide toml format the config file path",
+                      file=stderr, flush=True)
+                _exit(1)
+        else:
+            args.func()
+
+    elif hasattr(args, 'delete_func'):
+        cache_command = vars(args)
+        cache_command.pop('delete_func', None)
+        cache_command['cmd'] = 'delete'
+        cache_cli({'cache': cache_command})
+
+    elif hasattr(args, 'show_func'):
+        cache_command = vars(args)
+        cache_command.pop('show_func', None)
+        cache_command['cmd'] = 'show'
+        cache_cli({'cache': cache_command})
+
+    elif hasattr(args, 'rule_func'):
+        if args.rule and args.delete:
+            parser.print_help()
+            _exit(1)
+        elif args.name or args.count or args.show or args.delete:
+            rules_command = vars(args)
+            rules_command.pop('rule_func', None)
+            rules_cli({'rules': rules_command})
+        else:
+            parser.print_help()
+            _exit(1)
+
+    else:
+        parser.print_usage()
+        _exit(0)

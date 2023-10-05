@@ -1,0 +1,13 @@
+# log rotate config file, path /etc/logrotate.d/
+/dev/shm/dns.log {
+	su root adm
+	size 2M
+	rotate 3
+	missingok
+	notifempty
+	compress
+	delaycompress
+	nocreate
+	copytruncate
+}
+

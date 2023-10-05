@@ -1,0 +1,24 @@
+192.168.8.8 nas.guocl.cc
+192.168.2.1 ns.guocl.cc
+192.168.2.1 dns.guocl.cc
+fd11:66::1 ns.guocl.cc
+192.168.2.23 pve.guocl.cc
+192.168.2.32 portainer.guocl.cc
+#175.42.43.238 home.guocl.cc
+2408:8248:400:161::1234 home6.guocl.cc
+2408:8248:480:1183:244c:ae6e:8ffb:1614 vh.guocl.cc
+175.42.46.2 vh.guocl.cc
+2408:8248:480:31b8:61e7:3ac3:7f3b:7f71 vh.guocl.cc
+192.168.2.52 git.guocl.cc
+192.168.2.32 esphome.guocl.cc
+192.168.2.32 ha.guocl.cc
+192.168.2.32 sync.guocl.cc
+34.222.239.166 cc.guocl.cc
+192.168.2.36 plex.guocl.cc
+
+192.168.2.32 ps.guocl.cc
+192.168.2.32 obsidian.guocl.cc
+192.168.2.32 joplin.guocl.cc
+192.168.2.61 itv.guocl.cc
+192.168.2.32 iptv.guocl.cc
+192.168.2.11   photo.guocl.cc

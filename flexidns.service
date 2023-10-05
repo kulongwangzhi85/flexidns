@@ -1,0 +1,19 @@
+[Unit]
+Description=Python Code DNS Server
+After=network.target 
+StartLimitBurst=0
+StartLimitIntervalSec=60
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=flexidns start --config /usr/local/etc/flexidns/config.toml
+ExecStop=flexidns stop
+Restart=on-failure
+PrivateTmp=true
+KillMode=process
+KillSignal=SIGINT
+TimeoutSec=5
+
+[Install]
+WantedBy=multi-user.target

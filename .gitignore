@@ -1,0 +1,15 @@
+.venv/*
+.venv3.12/*
+.venv312/*
+.vscode/
+ssl/
+logs/
+build/
+dist/
+src/FlexiDNS.egg-info/*
+FlexiDNS.egg-info/*
+__pycache__/
+*.key
+*.rsa
+*.py[cod]
+*.txt

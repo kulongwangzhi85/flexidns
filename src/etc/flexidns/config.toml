@@ -1,0 +1,152 @@
+# 配置文件格式TOML
+
+# toml语法： https://toml.io/cn/v1.0.0
+# 域名集合： https://github.com/Loyalsoldier/v2ray-rules-dat
+# ip集合： https://github.com/Loyalsoldier/geoip
+
+[globals]
+basedir = "/usr/local/etc/flexidns/list" # domain-set与ip-set集合列表的目录路径
+nameserver = "ns1.xxx.xx"
+timeout = 3.0
+expired_reply_ttl = 1
+ttl_max = 10800
+ttl_min = 1800
+fakeip_ttl = 6
+response_mode = "first-response"                             # <first-response | fast-response> 目前只实现first
+query_threshold = 0.45                                       # 用于ipv4与ipv6地址测试时的对比阀值, 目前重构代码未使用该值
+soa = ["ptr"]						     # 用于屏蔽ptr类型记录，填写aaaa则屏蔽ipv6解析
+default_upstream = "cn"                                                       # 默认上游名称，建议使用domain-set中的一个名称，当选择cn作为默认上游时，domian-set中的重复部分会优先保留cn中的域名
+cache_persist = true                                                          # false 缓存持久化
+cache_file = "/dev/shm/flexidns.cache"                                        # 缓存持久化保存路径与文件名
+tls_cert = "PATH/etc/flexidns/ssl/xxx.cer"
+tls_cert_key = "PATH/etc/flexidns/ssl/xxx.key"
+tls_cert_ca = "PATH/etc/flexidns/ssl/ca.cer"
+
+[edns0]
+# edns0 将在dns报文中携带以下ip公网地址
+# 注意： 设置edns0需要上游dns服务器支持该功能，可使用命令dig @223.5.5.5  www.baidu.com +subnet=xxx.xxx.xxx.xxx测试 
+# 如果身处大内网，可直接设置为同一运营商的同一地区的地址网段, 最简单的方法为，网页搜索 IP地址查询，会显示所在区域的最外层出口的公网地址
+ipv4_address = "xxx.xxx.xxx.xxx"
+ipv6_address = "xxxx:xxxx:xxxx:xxxx::"
+
+[server]
+udp = ":53"                 # todo TAG: udp监听[::]:PORT 为全部协议族
+tcp = "[::]:53, 0.0.0.0:53" # ":53" 监听所有接口，所有协议族：ipv4和ipv6
+# [::]:53 只监听所有接口上的ipv6协议族的53端口
+# 0.0.0.0:53监听所有接口下的ipv4协议族的53端口
+dot = ":853" # 开启dns over tls 必须指定tls证书
+
+[blacklist]
+domain-set = ["ad"] # 域名列表一行一域名
+rcode = "success"   # "success" | "format_error" | "server_failure" | "name_error" | "nxdomain" | "refused" | "notimp"
+
+[upstreams]
+# adguard.com dns服务器，不可使用国内dns解析，会返回错误地址, 可直接使用IP
+# doq server 94.140.14.140 and 94.140.14.141, 2a10:50c0::ad1:ff and 2a10:50c0::ad2:ff and 94.140.14.14 and 94.140.15.15
+default = [
+    { protocol = "udp", address = "223.5.5.5", port = 53, ext = "edns0" },
+    { protocol = "tcp", address = "2400:3200::1", port = 53, ext = "edns0" },
+    { protocol = "udp", address = "58.22.96.66", port = 53 },
+]
+# default分组用于未匹配到任何域名集合分组时使用
+cn = [
+    { protocol = "udp", address = "223.5.5.5", port = 53, ext = "edns0" },
+    { protocol = "tcp", address = "2400:3200::1", port = 53, ext = "edns0" },
+    { protocol = "udp", address = "58.22.96.66", port = 53 },
+]
+# cn分组用于匹配到域名集合中的cn集合时，使用该分组进行转发
+# cn分组可用于默认分组，需在全局配置中使用default_upstream选项进行配置，当全局配置项default_upstream设置为cn时，default分组将无效
+
+proxy = [
+    # { protocol = "doq", address = "94.140.14.141", port = 853, ext = "edns0" },
+    # { protocol = "dot", address = "2620:fe::fe:9", port = 853, ext = "edns0" },
+    { protocol = "dot", address = "1.1.1.1", port = 853, ext = "edns0" },
+    # { protocol = "dot", address = "2606:4700:4700::1001", port = 853, ext = "edns0" },
+    # { protocol = "udp", address = "172.26.0.43", port = 6363 }
+    { protocol = "udp", address = "192.168.2.1", port = 15656, ext = "fakeip", fakeip = "198.18.0.0/15,fc00::/64" },
+]
+# NOTE: fakeip分组的ip地址由上游服务器提供，类似v2ray服务软件的dns部分提供. 如果未环境内未提供fakeip服务器，可删除该分组。域名集合中的proxy域名集合将全部由proxy分组完成转发
+# fakeip 与 proxy 两个分组组合成完整的proxy域名集合分组的查询。fakeip负责A记录与AAAA记录查询 ，其余部分使用proxy分组
+
+[fallback]
+# todo TAG: 注意修改fallback
+# 应该将fallback值作为参数选择域名需要写入rules
+cloudflare = { fallback = "fakeip", exclude = "ipv4.icanhazip.com,ns1.digitalocean.com" }
+telegram = { fallback = "fakeip", exclude = "" }
+
+[logs]
+logfile = "/dev/shm/flexidns.log"
+logerror = "/dev/shm/flexidns_err.log"
+loglevel = "debug"
+logcounts = 3                          # 日志分割后保存数量
+logsize = 3                            # 单位M
+
+[static]
+# 单份文件可省略[]
+"list" = "hosts"
+# ro 
+# "list" = ["/path/etc/flexidns/list/hosts"]
+"domainname_v4" = { "new.example.org" = "192.168.3.3", "cloud.example.org" = "192.168.3.30" }
+"domainname_v6" = { "cloud.example.org" = "2408:xxxx:xxxx:xxxx::1" }
+
+[ip-set]
+# 集合文件中每一行为网络地址 "192.168.2.0/24" or "2a10:1cc0::/29"
+cloudflare = { "list" = ["cloudflare.txt"], "ip" = [] }
+telegram = { "list" = "telegram.txt" }
+cn = { "list" = ["cn-all.txt"], "ip" = [] }
+
+[domain-set]
+# 域名集合
+# 格式：集合名 = ['/path/filename.txt']
+# 例如：ad = ['/tmp/ad-domains.txt']
+# 注意不是 ad = '[/path/filename.txt]'
+# 多文件用逗号分开 ad = ['/path/filename.txt', '/path/filename_1.txt']
+# 文件格式为一行一个域名
+# 未支持正则
+
+ad = { "list" = [
+    # "/home/guocl/Python/proj002/src/etc/flexidns/list/anti-ad-domains.txt",
+    # or
+    "anti-ad-domains.txt",
+], "domainname" = [] }
+
+
+direct = { "list" = [
+    "direct-list.txt",
+    "google-cn.txt",
+    "apple-cn.txt",
+], "domainname" = [
+    "ipv4.icanhazip.com",
+    "ns1.digitalocean.com",
+    "android.clients.google.com",
+    "push.apple.com",
+    "xn--ngstr-lra8j.com",
+    "play-fe.googleapis.com",
+    "www.googleapis.com",
+    "cn.pool.ntp.org",
+    "ipv4.icanhazip.com",
+    "ns1.digitalocean.com",
+] }
+
+cn = { "list" = ['china-domains.txt'], "domainname" = [] }
+cloudflare = { "list" = [], "domainname" = ["www.cloudflare.com"] }
+
+proxy = { "list" = [
+    "greatfire.txt",
+    "proxy-list.txt",
+    "mygfw.txt",
+], "domainname" = [
+] }
+
+[[set-usage]]
+[set-usage.domain-set.ip-set]
+cloudflare = "cloudflare"
+cn = "cn"
+[set-usage.domain-set.upstreams]
+proxy = "proxy"
+direct = "cn"
+# 注意顺序：如果两个规则列表中有同一个域名，则下面的会覆盖上面的。也就是只有下面这个规则列表生效
+[set-usage.domain-set.blacklist]
+ad = "ad"
+# 重构后未考虑如何处理该blacklist方法，目前只能使用ad的blacklist名
+
