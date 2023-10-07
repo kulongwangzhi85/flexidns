@@ -11,24 +11,33 @@ logging.basicConfig(level=logging.DEBUG,
                     )
 sys.path.append(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))) + '/src/')
-from pydns.tomlconfigure import loader_config
-loader_config('/home/guocl/Python/proj002/src/etc/pydns/config_devel.toml')
-from pydns.tomlconfigure import configs
-from pydns.dnsrules_new import module_init
+from FlexiDNS.tomlconfigure import loader_config
+loader_config('/home/guocl/Python/proj003/src/etc/flexidns/config_devel.toml')
+from FlexiDNS.tomlconfigure import configs
+from FlexiDNS.dnsrules_new import module_init
 module_init()
-from pydns.dnsrules_new import rulesearch, iprepostitory
+from FlexiDNS.dnsrules_new import rulesearch, iprepostitory
 # print(IPRepostitory.ipv4_repostitorys)
 # start_time = time.perf_counter()
-iprepostitory.search('2408:8248:480:778c:69f9:ad99:d4c:37f4', repositorie='cn')
+
+start_time = time.perf_counter()
+status = rulesearch.search('www.google.com', repositorie='upstreams-checkpoint')
+print(f'end time: {time.perf_counter() - start_time}, status: {status}')
+
+start_time = time.perf_counter()
+# status = iprepostitory.search('2408:8248:480:778c:69f9:ad99:d4c:37f4', repositorie='cn')
+status = rulesearch.search('www.baidu.com', repositorie='upstreams-checkpoint')
+print(f'end time: {time.perf_counter() - start_time}, status: {status}')
+
 start_time = time.perf_counter()
 status = iprepostitory.search('157.148.69.80', repositorie='cn')
-# status = iprepostitory.search('192.168.2.11', rulename='cn')
+print(f'end time: {time.perf_counter() - start_time}, status: {status}')
 
+start_time = time.perf_counter()
+status = iprepostitory.search('192.168.2.11', repositorie='cn')
 print(f'end time: {time.perf_counter() - start_time}, status: {status}')
 
 
-# print(rulesearch.search('www.baidu.com', repositorie='ip-sets-checkpoint'))
-print(rulesearch.search('www.baidu.com', repositorie='upstreams-checkpoint'))
 # print(rulesearch.repositories.get('ip-sets-checkpoint'))
 # rulesearch.modify('*.love67.net', rule='proxy')
 # logger.debug(rulesearch.search('tools.l.google.com', rulename='direct'))

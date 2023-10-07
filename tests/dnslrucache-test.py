@@ -5,12 +5,11 @@ import sys
 import os
 import logging
 import time
-from cacheout import LRUCache
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + '/src/')
 
-from pydns.tomlconfigure import loader_config
-loader_config('/home/guocl/Python/proj002/src/etc/pydns/config_devel.toml')
+from FlexiDNS.tomlconfigure import loader_config
+loader_config('/home/guocl/Python/proj003/src/etc/flexidns/config_devel.toml')
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -19,7 +18,7 @@ logging.basicConfig(level=logging.DEBUG,
                     datefmt='%Y-%m-%d  %H:%M:%S %a'  # 注意月份和天数不要搞乱了，这里的格式化符与time模块相同
                     )
 
-from pydns.dnslrucache import LRUCache
+from FlexiDNS.dnslrucache import LRUCache
 
 lrucache = LRUCache(3)
 
