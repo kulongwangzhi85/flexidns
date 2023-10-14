@@ -57,7 +57,7 @@ class LRUCache:
         try:
             self.access_order.remove(key)
         except ValueError:
-            pass
+            logger.error(f'Key {key} not in cache')
         self.access_order.appendleft(key)
 
     def set(self, key: t.Hashable, value: t.List):
@@ -79,7 +79,7 @@ class LRUCache:
             self.access_order.remove(key)
             self.cache.pop(key)
         except (ValueError, KeyError):
-            pass
+            logger.error(f'Key {key} not in cache')
 
 
 if __name__ == '__main__':

@@ -1,0 +1,5 @@
+# mydirct
+
+baidu.cc
+ad.www.baidu.com
+api.youku.com

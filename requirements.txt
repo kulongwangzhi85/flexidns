@@ -1,0 +1,5 @@
+dnslib>=0.9.23
+IPy>=1.1
+pyroute2>=0.7.3
+prettytable>=3.8.0
+aioquic>=0.9.21

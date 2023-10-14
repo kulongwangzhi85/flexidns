@@ -25,6 +25,7 @@ from .dnscache import new_cache
 from .dnsrules_new import rulesearch, iprepostitory
 from .dnslog import dnsidAdapter
 from .dnsupstream import query_create_tasklist
+from .dnsmmap_ipc import CircularBuffer
 
 logger = getLogger(__name__)
 contextvars_dnsinfo = share_objects.contextvars_dnsinfo
@@ -69,6 +70,9 @@ class QueueHandler(DNSRecord):
             case 'ipset_rule':
                 # 当请求域名无缓存时，也就是第一次请求解析时，在none_cache_method方法中调用该属性
                 setattr(self, 'ipset_rule', self.rulesearch.search(str(self.q.qname), repositorie='ip-sets-checkpoint'))
+                return getattr(self, name)
+            case 'ipc_mmap':
+                setattr(self, 'ipc_mmap', ipc_mmap)
                 return getattr(self, name)
 
     def __init__(self, header=None, questions=None, rr=None, auth=None, ar=None):
@@ -244,17 +248,31 @@ class QueueHandler(DNSRecord):
         self.ar.clear()
 
         if ttl_timeout_status:
+            out_data_length = struct.pack(
+                '!HH', 
+                len(self.non_edns0),
+                len(self.edns0)
+                )
+
+            out_data = out_data_length + self.non_edns0 + self.edns0
+
+            data_amount = self.ipc_mmap.write(out_data)
+            logger.debug(f'data_amount: {data_amount}')
+            logger.debug(f'out_data: {out_data}')
+            logger.debug(f'non_eddns0: {self.non_edns0}, edns0: {self.edns0}')
+
             ttl_timeout_send.send(
                 {
                     'id': self.header.id,
                     'client': self.client[0],
                     'qname': query_name,
                     'qtype': query_type,
-                    'edns0': self.edns0,
-                    'non_edns0': self.non_edns0,
                     'configs': configs,
                     'upserver': self.upserver,
-                    'rules': self.rules
+                    'rules': self.rules,
+                    'data_amount': data_amount,
+                    'edns0': None,
+                    'non_edns0': None,
                 }
             )
             return
@@ -583,14 +601,17 @@ def ttlout_update_cache(read_fd):
     data_prefix = os.read(read_fd, 2)
     if not data_prefix:
         return
-    data_length = struct.unpack('!H', data_prefix)[0]
-    data_pickle = os.read(read_fd, data_length)
-    data = pickle.loads(data_pickle)
+    data_prefix_length = struct.unpack('!H', data_prefix)[0]
+    data_prefix_struct = os.read(read_fd, data_prefix_length)
+    data_amount = pickle.loads(data_prefix_struct)
+    logger.debug(f'update cache data_amount: {data_amount}')
+    data_raw = ipc_01_mmap.read(data_amount)
     try:
+        data = pickle.loads(data_raw)
         dnspkg = QueueHandler.parse(data[0])
     except DNSError as error:
         logger.error(
-            f"update error not a dns packet, data length: {data_length}, data: {data}, data_prefix: {data_prefix}")
+            f"update error not a dns packet data: {data}, data_prefix: {data_prefix}")
     except OSError as error:
         logger.error("update error not a dns packet")
     else:
@@ -657,5 +678,8 @@ async def start_tasks():
 
 
 def start():
+    global ipc_mmap, ipc_01_mmap
+    ipc_mmap = CircularBuffer(ipc_mmap=share_objects.ipc_mmap, ipc_mmap_size=share_objects.ipc_mmap_size)
+    ipc_01_mmap = CircularBuffer(ipc_mmap=share_objects.ipc_01_mmap, ipc_mmap_size=share_objects.ipc_mmap_size)
     logger.debug(f'upstream dnsserver is {configs.dnsservers}')
     asyncio.run(start_tasks())

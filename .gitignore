@@ -12,4 +12,3 @@ __pycache__/
 *.key
 *.rsa
 *.py[cod]
-*.txt

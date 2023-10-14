@@ -6,7 +6,7 @@ dns服务器的日志初始化模块，采用QueueListener的方式接收日志�
 使用dnsadapter方法，获取上下文信息，并记录到日志中
 """
 
-from logging.handlers import QueueHandler, RotatingFileHandler, QueueListener
+from logging.handlers import QueueHandler, RotatingFileHandler, QueueListener, SysLogHandler
 from logging import DEBUG, INFO, WARNING, ERROR, CRITICAL, Formatter, getLogger, Filter, LoggerAdapter
 from multiprocessing import Queue
 logqueue = Queue()
@@ -61,6 +61,7 @@ def loggerconfigurer():
     loglevel = configs.loglevel
     logfile = configs.logfile
     logerror = configs.logerror
+    network_log_server = configs.network_log_server
     loglevels = {'debug': DEBUG, 'info': INFO, 'error': ERROR,
                  'warning': WARNING, 'critical': CRITICAL}
     root = getLogger()
@@ -82,7 +83,7 @@ def loggerconfigurer():
         encoding='utf-8'
     )
     rotat_handler.setLevel(loglevels.get(loglevel))
-    rotat_handler.addFilter(MyLevelFilterNoneError())
+    # rotat_handler.addFilter(MyLevelFilterNoneError())
     rotat_handler.setFormatter(pylog_fmt)
 
     rotat_handler_error = RotatingFileHandler(
@@ -97,11 +98,19 @@ def loggerconfigurer():
     rotat_handler_error.addFilter(MyLevelFilterError())
     rotat_handler_error.setFormatter(pylog_fmt)
 
+    logger_handlers = [rotat_handler, rotat_handler_error]
+
+    if network_log_server:
+        datagram_handler = SysLogHandler(network_log_server)
+        datagram_handler.setLevel(loglevels.get(loglevel))
+        datagram_handler.setFormatter(pylog_fmt)
+        logger_handlers.append(datagram_handler)
+
     qh = QueueHandler(logqueue)
     qh.setLevel(loglevels.get(loglevel))
     root.addHandler(qh)
 
-    listener = QueueListener(logqueue, *[rotat_handler, rotat_handler_error])
+    listener = QueueListener(logqueue, *logger_handlers)
     return listener
 
 

@@ -10,7 +10,7 @@ import contextvars
 import tomllib
 import socket
 import struct
-import sys
+import mmap
 from dataclasses import dataclass, field
 from os import _exit, urandom, pipe, path
 from multiprocessing import Pipe, Event
@@ -102,6 +102,10 @@ class Share_Objects_Structure:
             ]
         else:
             self.OPTv6 = []
+
+        self.ipc_mmap_size: int = 4096
+        self.ipc_mmap = mmap.mmap(-1, self.ipc_mmap_size, flags=mmap.MAP_SHARED)
+        self.ipc_01_mmap = mmap.mmap(-1, self.ipc_mmap_size, flags=mmap.MAP_SHARED)
 
 
 @dataclass(order=False)
@@ -196,6 +200,7 @@ class Configures_Structure:
         self.domainname_set = inittomlconfig.domainname_set_options
         self.static_domainname_set = inittomlconfig.static_domainname_set
         self.basedir = inittomlconfig.basedir
+        self.network_log_server = inittomlconfig.network_log_server 
 
 
 class TomlConfigures:
@@ -252,6 +257,11 @@ class TomlConfigures:
         self.loglevel = _logs_options.get('loglevel')
         self.logsize = _logs_options.get('logsize')
         self.logcounts = _logs_options.get('logcounts')
+        network_log_server = _logs_options.get('network_log_server', None)
+        if network_log_server:
+            self.network_log_server = tuple(network_log_server.values())
+        else:
+            self.network_log_server = None
 
         if _edns0:
             self.edns0_ipv4_address = _edns0.get('ipv4_address')

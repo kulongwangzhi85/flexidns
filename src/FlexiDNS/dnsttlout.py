@@ -17,6 +17,7 @@ from collections import namedtuple
 
 from .dnslog import dnsidAdapter
 from .tomlconfigure import share_objects
+from .dnsmmap_ipc import CircularBuffer
 
 logger = getLogger(__name__)
 contextvars_dnsinfo = share_objects.contextvars_dnsinfo
@@ -27,9 +28,12 @@ contextvars_rules = contextvars.ContextVar('dnsrules', default=None)
 
 async def start_tasks():
     from .dnsupstream import query_create_tasklist
+
     ttl_timeout_recv = share_objects.ttl_timeout_recv
     ttl_timeout_event = share_objects.ttl_timeout_event
     ttl_timeout_response_send_fd = share_objects.ttl_timeout_response_send
+    
+    ipc_mmap = CircularBuffer(ipc_mmap=share_objects.ipc_mmap, ipc_mmap_size=share_objects.ipc_mmap_size)
 
     dnspkg_obj = namedtuple('dnspkg', [
         'id',
@@ -41,13 +45,29 @@ async def start_tasks():
         'configs',
         'upserver',
         'rules',
+        'data_amount'
     ])
 
     while True:
         dict_data = ttl_timeout_recv.recv()
         if dict_data:
             contextvars_rules.set(dict_data.get('rules'))
-            dnspkg_ttl = dnspkg_obj(**dict_data)
+            _dnspkg_ttl = dnspkg_obj(**dict_data)
+            data_amount = _dnspkg_ttl.data_amount
+
+            logger.debug(f'data_amount: {data_amount}')
+            dns_packaged = ipc_mmap.read(data_amount)
+
+            dns_prefix = struct.unpack('!HH', dns_packaged[:4])
+            _non_edns0=dns_packaged[4:dns_prefix[0]+4]
+            _edns0=dns_packaged[4+dns_prefix[0]:]
+
+            logger.debug(f'dns_packaged: {dns_packaged}')
+
+            dnspkg_ttl = _dnspkg_ttl._replace(non_edns0=_non_edns0, edns0=_edns0)
+
+            logger.debug(f'non_eddns0: {dnspkg_ttl.non_edns0}, edns0: {dnspkg_ttl.edns0}')
+
             contextvars_dnsinfo.set({
                 'address': dnspkg_ttl.client,
                 'id': dnspkg_ttl.id,
@@ -59,9 +79,10 @@ async def start_tasks():
             dnspkg_data = await asyncio.create_task(query_create_tasklist(dnspkg_ttl))
             if dnspkg_data is not None:
                 data = pickle.dumps((dnspkg_data, contextvars_rules.get()))
-                data_length = len(data)
-                data_with_data_length = struct.pack('!H', data_length) + data
-                write(ttl_timeout_response_send_fd, data_with_data_length)
+                data_amount = ipc_01_mmap.write(data)
+                data_amount_pickle = pickle.dumps(data_amount)
+                data_amount_struct = struct.pack('!H', len(data_amount_pickle)) + data_amount_pickle
+                write(ttl_timeout_response_send_fd, data_amount_struct)
 
         if ttl_timeout_event.is_set():
             # 退出循环
@@ -69,5 +90,7 @@ async def start_tasks():
 
 
 def start():
+    global ipc_01_mmap
+    ipc_01_mmap = CircularBuffer(ipc_mmap=share_objects.ipc_01_mmap, ipc_mmap_size=share_objects.ipc_mmap_size)
     logger.debug(f'start ttlout dnsserver')
     asyncio.run(start_tasks())

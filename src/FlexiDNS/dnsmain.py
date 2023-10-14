@@ -104,7 +104,6 @@ def main(configfile):
     local_school.queue_listener = loggerconfigurer()
     local_school.queue_listener.start()
     logger = getLogger(__name__)
-    # logger.info(f'Start dns server, pid: {PID}') #不知为何执行该条语句会多出一条线程,注释后正常
 
     sys.stdout.flush()
     sys.stderr.flush()
