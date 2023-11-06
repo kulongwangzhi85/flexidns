@@ -36,7 +36,7 @@ try:
 except ImportError:
     logger.error("import ssl module is not installed")
 
-if find_spec('uvloop') and True:
+if False and find_spec('uvloop'):
     import uvloop
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
@@ -460,8 +460,10 @@ class DnsServerDatagramProtocol(asyncio.DatagramProtocol):
             logger.debug(f"udp recv a dns question packet")
         except DNSError as error:
             logger.error(f"udp recv not a dns packet: {error} client addr {addr[0]} port {addr[1]}")
+            logger.error(f"udp packet: {data}")
         except OSError as error:
             logger.error(f"udp recv not a dns packet: {error} client addr {addr[0]} port {addr[1]}")
+            logger.error(f"udp packet: {data}")
         else:
             asyncio.create_task(dnspkg.handler(self.transport, client=addr))
 
@@ -564,15 +566,12 @@ def exit_process(signal, loop):
 
     from .tomlconfigure import share_objects
     stop_message = share_objects.ttl_timeout_send
-    ttl_timeout_event = share_objects.ttl_timeout_event
-    ttl_timeout_event.set()
     stop_message.send(None)
+
     if configs.cache_persist:
         serialize(new_cache, rulesearch)
 
     asyncio_event.set()
-    loop.stop()
-    logger.debug('stop asyncio tasks')
 
 def ipset_checkpoint(data: QueueHandler) -> bool:
     """
@@ -675,6 +674,8 @@ async def start_tasks():
         dotsrv.close()
         await tcpsrv.wait_closed()
         await dotsrv.wait_closed()
+        ipc_mmap.mm.close()
+        logger.debug('stop asyncio server')
 
 
 def start():

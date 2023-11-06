@@ -181,8 +181,8 @@ class lrucacheout:
                 _save_obj.set_many({dnspkg.q.qname: {'rr': dnspkg.rr, 'auth': dnspkg.auth,'ar': dnspkg.ar, 'rcode': dnspkg.response_header .get_rcode()}})
         return
 
-    def deldata(self, qname, qtype):
-        logger.debug(f'del cache dnspkg')
+    def deldata(self, qname: DNSLabel, qtype: QTYPE):
+        logger.debug(f'del cache dnspkg, qname {qname} qtype {qtype}')
         if _save_obj := self.search_cache.get(QTYPE.get(qtype)):
             _tmp_data = _save_obj.get(qname)
             if _tmp_data:

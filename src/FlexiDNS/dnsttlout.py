@@ -30,7 +30,6 @@ async def start_tasks():
     from .dnsupstream import query_create_tasklist
 
     ttl_timeout_recv = share_objects.ttl_timeout_recv
-    ttl_timeout_event = share_objects.ttl_timeout_event
     ttl_timeout_response_send_fd = share_objects.ttl_timeout_response_send
     
     ipc_mmap = CircularBuffer(ipc_mmap=share_objects.ipc_mmap, ipc_mmap_size=share_objects.ipc_mmap_size)
@@ -83,11 +82,10 @@ async def start_tasks():
                 data_amount_pickle = pickle.dumps(data_amount)
                 data_amount_struct = struct.pack('!H', len(data_amount_pickle)) + data_amount_pickle
                 write(ttl_timeout_response_send_fd, data_amount_struct)
-
-        if ttl_timeout_event.is_set():
-            # 退出循环
+        else:
+            ipc_01_mmap.mm.close()
+            logger.debug('stop server.......')
             break
-
 
 def start():
     global ipc_01_mmap

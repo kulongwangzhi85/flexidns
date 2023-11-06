@@ -475,12 +475,12 @@ class RULESearch(RULERepository):
                 domainname = domainname.strip().rstrip('.')
                 domainname = '.'.join(domainname.strip().split('.')[1:])
 
-                logger.debug(f'delete before is {self.rulesfull}')
+                logger.debug(f'delete before rulesfull is len: {len(self.rulesfull)}')
                 self.__delete_rulesfull_cache(domainname.split('.'))
                 logger.debug(f'modify domainname: {domainname}, rule: {rule}, ruleswildcard: {self.ruleswildcard}')
 
                 self.daemon_write([domainname], rule, self.ruleswildcard)
-                logger.debug(f'delete after is {self.rulesfull}, ruleswildcard: {self.ruleswildcard}')
+                logger.debug(f'delete after rulesfull is len: {len(self.rulesfull)}, ruleswildcard len: {len(self.ruleswildcard)}')
                 return (enter_domainname, self.searchcache.get(domainname))
 
             cacheobj = self.searchcache.get(domainname)
@@ -560,10 +560,10 @@ class RULESearch(RULERepository):
             domainname = '.'.join(domainname.strip().split('.')[1:])
 
             detail.update({'befor': self.searchcache.get(enter_domainname)})
-            logger.debug(f'delete before is {self.ruleswildcard}, domainname in wildcard: {domainname}')
+            logger.debug(f'delete before ruleswildcard is len {len(self.ruleswildcard)}, domainname in wildcard: {domainname}')
             self.__delete_rulesfull_cache(domainname.split('.'))
             self.__delete_ruleswildcard_cache(domainname.split('.'))
-            logger.debug(f'delete after is {self.ruleswildcard}')
+            logger.debug(f'delete after ruleswildcard is {len(self.ruleswildcard)}')
             detail.update({'after': self.search(enter_domainname, repositorie='upstreams-checkpoint')})
             return {enter_domainname: detail}
         else:
@@ -595,7 +595,8 @@ class RULESearch(RULERepository):
         """
         results = []
         domainname.reverse()
-        for i in self.rulesfull:
+        __rulesfull = self.rulesfull.copy()
+        for i in __rulesfull:
             list_domainname_cache = i.split('.')[:-1]
             list_domainname_cache.reverse()
             if len(list_domainname_cache) >= len(domainname):
