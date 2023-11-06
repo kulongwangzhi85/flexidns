@@ -150,6 +150,9 @@ class CacheOperate:
             except UnpicklingError as e:
                 mmdata = b''
                 print('error:', e, file=stderr, flush=True)
+            if mmdata_bytes is True:
+                return 
+
             if len(mmdata) > 0 or len(mmdata) == data_length:
                 for i in mmdata_bytes:
                     print(i)
