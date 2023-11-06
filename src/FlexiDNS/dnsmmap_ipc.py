@@ -78,8 +78,8 @@ class CircularBuffer:
 
             end_location = (0, datasize)
 
-            if (start_location + sum(end_location)) > size:
-                end_location = (size - start_location, abs(size - (start_location + sum(end_location))))
+            if (current_datasize := start_location + sum(end_location)) > size:
+                end_location = (size - start_location, abs(size - current_datasize))
                 is_full = True
 
     def read(self, locations: DATA_LOCATION) -> bytes:
@@ -95,14 +95,14 @@ class CircularBuffer:
 
     def write(self, data: bytes) -> DATA_LOCATION:
 
-        data_amount = self.locations.send(data_size := len(data))
+        data_amount = self.locations.send(datasize:=len(data))
         self.mm.seek(data_amount[0])
 
         if data_amount[1][0] > 0:
             memv_data = memoryview(data)
             self.mm.write(memv_data[0:data_amount[1][0]])
             self.mm.seek(0)
-            self.mm.write(memv_data[data_amount[1][0]:data_size])
+            self.mm.write(memv_data[data_amount[1][0]:datasize])
         else:
             self.mm.write(data)
 

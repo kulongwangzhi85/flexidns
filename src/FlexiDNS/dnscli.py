@@ -255,7 +255,23 @@ class ManagerMmap:
                 return data_length
 
             case 'delete':
-                pass
+                from dnslib import QTYPE, DNSLabel
+                logger.debug(f'delete command: {command}')
+                delete_result = set()
+                delete_qnames = command.get('qname')
+                for i in delete_qnames:
+                    delete_qname = DNSLabel(i)
+                    logger.debug(delete_qname)
+                    self.new_cache.deldata(delete_qname, QTYPE.A)
+                    self.new_cache.deldata(delete_qname, QTYPE.AAAA)
+                    delete_result.add(self.new_cache.getdata(delete_qname, QTYPE.A))
+                    delete_result.add(self.new_cache.getdata(delete_qname, QTYPE.AAAA))
+                data_length, data = self.__send_data(delete_result)
+                self.mm.seek(0)
+                self.mm.write(data)
+                logger.debug('mmap write done')
+                logger.debug(f'delete result: {delete_result}, data length: {data_length} data: {data}')
+                return data_length
 
 
 commandmmap = ManagerMmap()

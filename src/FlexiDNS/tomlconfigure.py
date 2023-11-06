@@ -24,15 +24,12 @@ class Share_Objects_Structure:
     # 由于configs需要pickle，当无法pickle对象可放置在该对象中
     ttl_timeout_send: Pipe
     ttl_timeout_recv: Pipe
-    ttl_timeout_event: Event
     ttl_timeout_response_recv: pipe
     ttl_timeout_response_send: pipe
     contextvars_dnsinfo: contextvars.ContextVar
 
     def __init__(self):
         self.ttl_timeout_send, self.ttl_timeout_recv = Pipe()
-        self.ttl_timeout_event = Event()
-        self.ttl_timeout_event.clear()
         self.ttl_timeout_response_recv, self.ttl_timeout_response_send = pipe()
 
     def init(self):
