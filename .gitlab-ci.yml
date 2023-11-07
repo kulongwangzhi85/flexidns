@@ -23,6 +23,7 @@ variables:
 # them in a virtualenv and cache it as well.
 stages:
   - test
+  - build
 
 cache:
   paths:
@@ -43,4 +44,11 @@ test_mmaps:
     script: 
       - "python tests/test_dnsmmap.py"
 
-          
+dev_build:
+    stage: build
+    tags:
+      - unittest
+    variables:
+      CI_DEBUG_TRACE: "false"
+    script:
+      - "python3 -m build --wheel"
