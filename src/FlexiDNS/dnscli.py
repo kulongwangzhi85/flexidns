@@ -260,8 +260,7 @@ class ManagerMmap:
                 delete_qnames = command.get('qname')
                 for i in delete_qnames:
                     delete_qname = DNSLabel(i)
-                    for record_qtype in self.new_cache.search_cache.keys():
-                        self.new_cache.deldata(delete_qname, record_qtype)
+                    list(map(lambda x: self.new_cache.deldata(delete_qname, x), self.new_cache.search_cache.keys()))
                 data_length, data = self.__send_data(True)
                 self.mm.seek(0)
                 self.mm.write(data)
