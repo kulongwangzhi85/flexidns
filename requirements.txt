@@ -3,3 +3,5 @@ IPy>=1.1
 pyroute2>=0.7.3
 prettytable>=3.8.0
 aioquic>=0.9.21
+build>=1.0.3
+wheel>=0.41.2
