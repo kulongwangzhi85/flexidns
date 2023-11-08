@@ -459,9 +459,11 @@ class DnsServerDatagramProtocol(asyncio.DatagramProtocol):
             dnspkg = QueueHandler.parse(data)
             logger.debug(f"udp recv a dns question packet")
         except DNSError as error:
+            contextvars_dnsinfo.set({'address': addr[0], 'id': None, 'qname': None, 'qtype': None})
             logger.error(f"udp recv not a dns packet: {error} client addr {addr[0]} port {addr[1]}")
             logger.error(f"udp packet: {data}")
         except OSError as error:
+            contextvars_dnsinfo.set({'address': addr[0], 'id': None, 'qname': None, 'qtype': None})
             logger.error(f"udp recv not a dns packet: {error} client addr {addr[0]} port {addr[1]}")
             logger.error(f"udp packet: {data}")
         else:
@@ -487,9 +489,11 @@ class DnsServerDatastramProtocol(asyncio.Protocol):
             dnspkg = QueueHandler.parse(data[2:])
             logger.debug(f"tcp recv a dns question packet")
         except DNSError as error:
+            contextvars_dnsinfo.set({'address': None, 'id': None, 'qname': None, 'qtype': None})
             logger.error(f"tcp recv not a dns packet: {error}")
             self.transport.close()
         except OSError as error:
+            contextvars_dnsinfo.set({'address': None, 'id': None, 'qname': None, 'qtype': None})
             logger.error(f"tcp recv not a dns packet: {error}")
             self.transport.close()
         else:
@@ -543,14 +547,17 @@ class DnsOverTLSServerProtocol(asyncio.Protocol):
             dnspkg = QueueHandler.parse(data[2:])
             logger.debug(f"dot recv a dns question packet")
         except ssl.SSLError as error:
+            contextvars_dnsinfo.set({'address': None, 'id': None, 'qname': None, 'qtype': None})
             logger.error(f"dot recv not a dns packet: {error}")
             self.transport.close()
             return
         except DNSError as error:
+            contextvars_dnsinfo.set({'address': None, 'id': None, 'qname': None, 'qtype': None})
             logger.error(f"dot recv not a dns packet: {error}")
             self.transport.close()
             return
         except OSError as error:
+            contextvars_dnsinfo.set({'address': None, 'id': None, 'qname': None, 'qtype': None})
             logger.error(f"dot recv not a dns packet: {error}")
             self.transport.close()
             return
