@@ -678,9 +678,14 @@ async def start_tasks():
     finally:
         udpsrv_transport.close()
         tcpsrv.close()
-        dotsrv.close()
         await tcpsrv.wait_closed()
-        await dotsrv.wait_closed()
+
+        try:
+            dotsrv.close()
+            await dotsrv.wait_closed()
+        except UnboundLocalError as error:
+            pass
+
         ipc_mmap.mm.close()
         logger.debug('stop asyncio server')
 
