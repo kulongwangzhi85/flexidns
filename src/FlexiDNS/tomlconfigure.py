@@ -189,6 +189,28 @@ class Configures_Structure:
         self.edns0_ipv4_address = inittomlconfig.edns0_ipv4_address
         self.edns0_ipv6_address = inittomlconfig.edns0_ipv6_address
 
+        if self.edns0_ipv4_address is None:
+            _dnsservers = self.dnsservers.copy()
+            for upstream_name, servers in _dnsservers.items():
+                _tmp_list = []
+                for server in servers:
+                    if IP(server[0]).version() == 4:
+                        _tmp_list.append((server[0], server[1], server[2], None))
+                    else:
+                        _tmp_list.append(server)
+                self.dnsservers.update({upstream_name: _tmp_list})
+
+        if self.edns0_ipv6_address is None:
+            _dnsservers = self.dnsservers.copy()
+            for upstream_name, servers in _dnsservers.items():
+                _tmp_list = []
+                for server in servers:
+                    if IP(server[0]).version() == 6:
+                        _tmp_list.append((server[0], server[1], server[2], None))
+                    else:
+                        _tmp_list.append(server)
+                self.dnsservers.update({upstream_name: _tmp_list})
+
         if len(_soa_list := inittomlconfig.soa) > 0:
             for i in _soa_list:
                 self.soa_list.add(QTYPE.__getattr__(i.upper()))
@@ -331,6 +353,10 @@ class TomlConfigures:
                     self.bool_fakeip = True
                     self.fakeip_match = k
                     self.fakeip_upserver = i
+                else:
+                    self.bool_fakeip = False
+                    self.fakeip_match = None
+                    self.fakeip_upserver = None
 
         set_upstreams = set()
         self.default_upstream_rule = set()

@@ -16,11 +16,11 @@ sys.path.append(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))) + '/src/')
 from FlexiDNS.tomlconfigure import loader_config, share_objects, configs
 loader_config(
-    '/home/guocl/Python/proj003/src/etc/flexidns/config_devel.toml')
+    '/home/guocl/Python/flexidns/src/etc/flexidns/config_devel.toml')
 # '/home/guocl/Python/proj003/src/etc/pydns/config.toml')
 # print(configs.set_usage[0].get('domain-set').get('ip-set'))
 # print(configs.ipset)
-print(configs.mmapfile)
+print(configs.dnsservers)
 
 
 # for i in configs.__dict__:
