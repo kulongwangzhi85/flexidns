@@ -134,7 +134,7 @@ def stop_server():
     并执行清理操作
     """
     try:
-        with open(f'/run/{__package__}.pid', 'r') as f:
+        with open(configs.pidfile, 'r') as f:
             try:
                 PGID = os.getpgid(int(f.read()))
             except OSError:
