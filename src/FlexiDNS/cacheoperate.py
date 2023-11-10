@@ -22,7 +22,14 @@ signal(SIGPIPE, SIG_DFL)
 
 class CacheOperate:
     def __init__(self):
-        self.socket_file = configs.sockfile
+        from os import path, _exit
+        if path.exists(configs.sockfile):
+            self.socket_file = configs.sockfile
+        else:
+            outerr_message = "Server is not running, please use command 'systemctl start flexidns' or 'flexidns start --config /path/etc/flexidns/config.toml'"
+            print(outerr_message, flush=True, file=stderr)
+            _exit(1)
+
         self.mmap_file = configs.mmapfile
 
     def rules(self, args):
@@ -68,14 +75,17 @@ class CacheOperate:
                         x.field_names = ['query name',
                                          'befor rule', 'after rule']
                         for i in data['data']:
-                            for domanname, respones_data in i.items():
-                                x.add_row(
-                                    [
-                                        domanname,
-                                        respones_data.get('befor'),
-                                        respones_data.get('after')
-                                    ])
-                        print(x)
+                            if i is not None:
+                                for domanname, respones_data in i.items():
+                                    x.add_row(
+                                        [
+                                            domanname,
+                                            respones_data.get('befor'),
+                                            respones_data.get('after')
+                                        ])
+                                print(x)
+                            else:
+                                print(f'rule {data["delete"]} not found, no action performed')
 
                     case 'count':
                         # 查看规则数量
