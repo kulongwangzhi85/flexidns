@@ -676,11 +676,11 @@ async def start_tasks():
         logger.debug('start asyncio server')
         await asyncio_event.wait()
     finally:
-        udpsrv_transport.close()
-        tcpsrv.close()
-        await tcpsrv.wait_closed()
 
         try:
+            udpsrv_transport.close()
+            tcpsrv.close()
+            await tcpsrv.wait_closed()
             dotsrv.close()
             await dotsrv.wait_closed()
         except UnboundLocalError as error:

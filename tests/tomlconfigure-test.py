@@ -20,7 +20,7 @@ loader_config(
 # '/home/guocl/Python/proj003/src/etc/pydns/config.toml')
 # print(configs.set_usage[0].get('domain-set').get('ip-set'))
 # print(configs.ipset)
-print(configs.dnsservers)
+print(configs.set_usage[0])
 
 
 # for i in configs.__dict__:

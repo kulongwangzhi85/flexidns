@@ -7,6 +7,7 @@
 """
 
 import contextvars
+from copy import deepcopy
 import tomllib
 import socket
 import struct
@@ -109,34 +110,21 @@ class Share_Objects_Structure:
 class Configures_Structure:
 
     # 定义初始值或默认值
-    pidfile = f'/run/{__package__}.pid'
+    pidfile = f'/run/{str(__package__).lower()}.pid'
     blacklist: list = field(default_factory=lambda: [])
     blacklist_rcode: str = "success"
     default_rule: urandom = urandom(12).hex()
-    cache_persist: bool = False
-    cache_file: str = f"/var/log/{__package__}.cache"
     default_server: dict = field(default_factory=lambda: {"udp": "[::1]:53"})
-    expired_reply_ttl: float = 1
-    fakeip_ttl: int = 6
     ipset: dict = field(default_factory=lambda: {})
-    logfile: str = f"/var/log/{__package__}.log"
-    logerror: str = f"/var/log/{__package__}.err"
-    loglevel: str = "info"
-    logfile_size: int = 3 * 1024 * 1024
-    logfile_backupcount: int = 3
-    mmapfile: str = f"/dev/shm/{__package__}.mmap"
-    response_mode: str = "first-response"
+    mmapfile: str = f"/dev/shm/{str(__package__).lower()}.mmap"
     rulesjson: dict = field(default_factory=lambda: {})
-    timeout: float = 2.0
     lru_maxsize: int = 4096
-    ttl_max: int = 7200
-    ttl_min: int = 600
     tls_cert: str = ""
     tls_cert_key: str = ""
     tls_cert_ca: str = ""
     nameserver: str = ""
     static_rule: urandom = urandom(12).hex()
-    sockfile: str = f"/dev/shm/{__package__}.sock"
+    sockfile: str = f"/dev/shm/{str(__package__).lower()}.sock"
     server: list = field(default_factory=lambda: [])
     soa_list: set = field(default_factory=lambda: {
         QTYPE.__getattr__('ptr'.upper()), })
@@ -229,17 +217,29 @@ class TomlConfigures:
         with open(configpath, 'rb') as f:
             config_data = tomllib.load(f)
 
-        _gloabls_options = config_data.get('globals')
-        _server_options = config_data.get('server')
-        _logs_options = config_data.get('logs', {})
+        _gloabls_options = config_data.get('globals', {})
+        _server_options = config_data.get('server', {'udp': ':53'})
+
+        _logs_options = config_data.get('logs', {
+            'logfile': f'/var/log/{str(__package__).lower()}.log',
+            'logerror': f'/var/log/{str(__package__).lower()}_err.log',
+            'loglevel': 'debug',
+            'logsize': 1,
+            'logcounts': 3,
+        })
+
         _fallback_options = config_data.get('fallback', {})
         _blacklist_options = config_data.get('blacklist', {'domain-set': []})
-        _upstreams_options = config_data.get('upstreams')
+        _upstreams_options = config_data.get('upstreams', {'default': [{'protocol': 'udp', 'address': '223.5.5.5', 'port': 53, 'ext': None}]})
         _domain_set_options = config_data.get('domain-set', {})
         _ip_set_options = config_data.get('ip-set', {})
         _edns0 = config_data.get('edns0')
-        self._set_usage = config_data.get('set-usage')
-        self.static_domainname_set = config_data.get('static')
+
+        self._set_usage = config_data.get('set-usage', [
+            {'domain-set': {'ip-set': {}, 'upstreams': {}, 'blacklist': {}}},
+            ])
+
+        self.static_domainname_set = config_data.get('static', {})
         self.domainname_set_options = config_data.get('domain-set', {})
         self.basedir = _gloabls_options.get('basedir', "")
 
@@ -255,18 +255,20 @@ class TomlConfigures:
         self.speedtcpport = 'tcp'
         self.fakeip_match = None
         self.max_threads = 3
+        self.bool_fakeip = False
+        self.fakeip_upserver = None
 
         self.nameserver = _gloabls_options.get('nameserver')
-        self.expired_reply_ttl = _gloabls_options.get('expired_reply_ttl')
-        self.ttl_max = _gloabls_options.get('ttl_max')
-        self.ttl_min = _gloabls_options.get('ttl_min')
-        self.fakeip_ttl = _gloabls_options.get('fakeip_ttl')
-        self.response_mode = _gloabls_options.get('response_mode')
-        self.timeout = _gloabls_options.get('timeout')
+        self.expired_reply_ttl = _gloabls_options.get('expired_reply_ttl', 1)
+        self.ttl_max = _gloabls_options.get('ttl_max', 7200)
+        self.ttl_min = _gloabls_options.get('ttl_min', 600)
+        self.fakeip_ttl = _gloabls_options.get('fakeip_ttl', 6)
+        self.response_mode = _gloabls_options.get('response_mode', "first-response")
+        self.timeout = _gloabls_options.get('timeout', 3.0)
         self.query_threshold = _gloabls_options.get('query_threshold')
-        self.soa = _gloabls_options.get('soa')
-        self.cache_persist = _gloabls_options.get('cache_persist')
-        self.cache_file = _gloabls_options.get('cache_file')
+        self.soa = _gloabls_options.get('soa', ['ptr'])
+        self.cache_persist = _gloabls_options.get('cache_persist', False)
+        self.cache_file = _gloabls_options.get('cache_file', f"/var/log/{str(__package__).lower()}.cache")
         self.tls_cert = _gloabls_options.get('tls_cert')
         self.tls_cert_key = _gloabls_options.get('tls_cert_key')
         self.tls_cert_ca = _gloabls_options.get('tls_cert_ca')
@@ -361,8 +363,7 @@ class TomlConfigures:
         set_upstreams = set()
         self.default_upstream_rule = set()
 
-        upstreams_name = self._set_usage[0].get(
-            'domain-set').get('upstreams').keys()
+        upstreams_name = self._set_usage[0].get('domain-set').get('upstreams').keys()
 
         for i in upstreams_name:
             set_upstreams.add(i)
@@ -479,6 +480,13 @@ class TomlConfigures:
             elif isinstance(lists, str):
                 _set_value.update({'list': path.join(self.basedir, lists)})
         self.ipset = _ip_set_options
+
+        # 验证set-usage值在ip-set中是否存在
+        _set_usage  = deepcopy(self._set_usage[0])
+        for ipset_name in _set_usage.get('domain-set').get('ip-set'):
+            ipset_value = self.ipset.get(ipset_name)
+            if ipset_value is None:
+                self._set_usage[0].get('domain-set').get('ip-set').pop(ipset_name)
 
     def check_ip(self, ip):
         try:
