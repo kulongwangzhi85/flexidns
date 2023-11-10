@@ -22,36 +22,39 @@ signal(SIGPIPE, SIG_DFL)
 
 class CacheOperate:
     def __init__(self):
-        from os import path, _exit
-        if path.exists(configs.sockfile):
+        if os.path.exists(configs.sockfile):
             self.socket_file = configs.sockfile
         else:
             outerr_message = "Server is not running, please use command 'systemctl start flexidns' or 'flexidns start --config /path/etc/flexidns/config.toml'"
             print(outerr_message, flush=True, file=stderr)
-            _exit(1)
+            os._exit(1)
 
         self.mmap_file = configs.mmapfile
 
     def rules(self, args):
         """
         defaults:
-        name=query_name -> data type: list,
-        rules=None -> data type: str,
-        count=False, 
-        show=False, 
-        delete=None -> data type: list
+            name=query_name -> data type: list,
+            rules=None -> data type: str,
+            count=False, 
+            show=False, 
+            delete=None -> data type: list
 
-        args = {
-            "rules": {
-                "name": name,
-                "rule": rule,
-                "count": count,
-                "show": show,
-                "delete": delete
+        structure:
+            args = {
+                "rules": {
+                    "name": name,
+                    "rule": rule,
+                    "count": count,
+                    "show": show,
+                    "delete": delete
+                }
             }
-        }
         """
         # 用于rules命令查询
+        if self._verify_args(args) is False:
+            print("invalid domain name!", flush=True, file=stderr)
+            os._exit(1)
         message_data = pickle.dumps(args)
         client_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         client_socket.setblocking(True)
@@ -193,3 +196,17 @@ class CacheOperate:
         else:
             print(data_table)
         return
+
+    def _verify_args(self, args):
+        error_string = "~!@#$%^&:;()_+<>,[]\\/{|}"
+        if args:
+            for arg in args.values():
+                for i in arg.values():
+                    if isinstance(i, list):
+                        for user_data in i:
+                            for err_str in error_string:
+                                if err_str in user_data:
+                                    return False
+                    return True
+        else:
+            return False
