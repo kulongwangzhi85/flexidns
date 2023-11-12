@@ -33,7 +33,116 @@
 5. 使用tcp进行速度探测（使用linux内核提供链接表进行探测，不使用固定端口探测）
 6. 使用命令参数进行在线配置
 
-## 三、配置方法
+## 三、使用方法
+### 安装
+#### 直接启动
+1. 克隆或下载
+```shell
+git clone https://github.com/kulongwangzhi85/flexidns.git
+```
+2. 安装依赖
+```shell
+cd flexidns
+pip3 install -r requirements.txt
+```
+3. 启动服务
+```shell
+touch config.toml #空文件
+sudo ./src/flexidns start --config ./config.toml
+或
+sudo ./src/flexidns start --config ./src/etc/flexidns/config.toml
+```
+4. 停止服务
+```shell
+sudo ./src/flexidns stop
+```
+
+**NOTE**: 使用空配置文件时，会使用以下默认值启动服务
+##### 默认值
+```python
+    CACHE_FILE =  f'/var/log/{str(__package__).lower()}.cache'
+    TIME_OUT = 3.0
+    SOA_LIST = ['ptr']
+
+    LOG_FILE = f'/var/log/{str(__package__).lower()}.log'
+    LOG_ERROR = f'/var/log/{str(__package__).lower()}_err.log'
+    LOG_LEVEL = 'debug'
+    LOG_SIZE = 1
+    LOG_COUNTS = 3
+    
+    TTL_MAX = 7200
+    TTL_MIN = 600
+    TTL_FAKEIP = 6
+    TTL_EXPIRED_REPLY = 1
+
+    DEFAULT_UPSTREAMS = {
+        'default': [
+            {
+                'protocol': 'udp',
+                'address': '223.5.5.5',
+                'port': 53,
+                'ext': None
+            }
+        ]
+    }
+
+    SET_USAGE = [
+        {
+            'domain-set': {
+                'ip-set': {},
+                'upstreams': {},
+                'blacklist': {}
+            }
+        },
+    ]
+```
+#### 打包安装
+1. 克隆或下载
+```shell
+git clone https://github.com/kulongwangzhi85/flexidns.git
+```
+2. 安装依赖
+```shell
+cd flexidns
+pip3 install -r requirements.txt
+```
+3. build
+```shell
+python3 -m build -w -o ./ ./
+```
+> 第一个'./'为打包文件到当前目录。
+> 第二个'./'项目根路径（注意不是源码目录）
+4. 安装打包好的whl文件
+```shell
+pip3 install FlexiDNS-1.1.0.dev\*-py3-none-any.whl
+```
+> 该方法安装的文件，会根据`sys.prefix`的路径进行安装
+
+*sys.prefix*路径
+* 如果使用系统软件包管理工具进行安装的python，sys.prefix为`/usr/`
+* 使用源码编译的python，则为编译prefix参数指定, 如果未指定。大部分为`/usr/local`
+* 配置文件路径:`<prefix>/etc/flexidns/`
+* 主命令文件路径: `<prefix>/bin/`
+
+5. 启动服务
+```shell
+touch config.toml #空配置文件
+
+sudo flexidns start --config ./config.toml
+或
+sudo flexidns start --config ./src/etc/flexidns/config.toml
+或
+sudo systemctl daemon-reload
+sudo systemctl start flexidns.service
+```
+
+6. 停止服务
+```shell
+sudo systemctl stop flexidns.service
+或
+sudo flexidns stop
+```
+
 1. hosts配置
 配置文件格式采用与linux系统下的/etc/hosts文件格式相同，
 一行一个规则，一个域名可配置多个ipv4与ipv6地址
