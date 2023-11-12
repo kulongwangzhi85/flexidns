@@ -211,8 +211,45 @@ class Configures_Structure:
 
 
 class TomlConfigures:
+    CACHE_FILE =  f'/var/log/{str(__package__).lower()}.cache'
+    TIME_OUT = 3.0
+    SOA_LIST = ['ptr']
+
+    LOG_FILE = f'/var/log/{str(__package__).lower()}.log'
+    LOG_ERROR = f'/var/log/{str(__package__).lower()}_err.log'
+    LOG_LEVEL = 'debug'
+    LOG_SIZE = 1
+    LOG_COUNTS = 3
+    
+    TTL_MAX = 7200
+    TTL_MIN = 600
+    TTL_FAKEIP = 6
+    TTL_EXPIRED_REPLY = 1
+
+    DEFAULT_UPSTREAMS = {
+        'default': [
+            {
+                'protocol': 'udp',
+                'address': '223.5.5.5',
+                'port': 53,
+                'ext': None
+            }
+        ]
+    }
+
+    SET_USAGE = [
+        {
+            'domain-set': {
+                'ip-set': {},
+                'upstreams': {},
+                'blacklist': {}
+            }
+        },
+    ]
 
     def __init__(self, configpath):
+
+
         self.fakeip_name = 'fakeip'
         with open(configpath, 'rb') as f:
             config_data = tomllib.load(f)
@@ -221,23 +258,21 @@ class TomlConfigures:
         _server_options = config_data.get('server', {'udp': ':53'})
 
         _logs_options = config_data.get('logs', {
-            'logfile': f'/var/log/{str(__package__).lower()}.log',
-            'logerror': f'/var/log/{str(__package__).lower()}_err.log',
-            'loglevel': 'debug',
-            'logsize': 1,
-            'logcounts': 3,
+            'logfile': TomlConfigures.LOG_FILE,
+            'logerror': TomlConfigures.LOG_ERROR,
+            'loglevel': TomlConfigures.LOG_LEVEL,
+            'logsize': TomlConfigures.LOG_SIZE,
+            'logcounts': TomlConfigures.LOG_COUNTS
         })
 
         _fallback_options = config_data.get('fallback', {})
         _blacklist_options = config_data.get('blacklist', {'domain-set': []})
-        _upstreams_options = config_data.get('upstreams', {'default': [{'protocol': 'udp', 'address': '223.5.5.5', 'port': 53, 'ext': None}]})
+        _upstreams_options = config_data.get('upstreams', TomlConfigures.DEFAULT_UPSTREAMS)
         _domain_set_options = config_data.get('domain-set', {})
         _ip_set_options = config_data.get('ip-set', {})
         _edns0 = config_data.get('edns0')
 
-        self._set_usage = config_data.get('set-usage', [
-            {'domain-set': {'ip-set': {}, 'upstreams': {}, 'blacklist': {}}},
-            ])
+        self._set_usage = config_data.get('set-usage', TomlConfigures.SET_USAGE)
 
         self.static_domainname_set = config_data.get('static', {})
         self.domainname_set_options = config_data.get('domain-set', {})
@@ -259,25 +294,26 @@ class TomlConfigures:
         self.fakeip_upserver = None
 
         self.nameserver = _gloabls_options.get('nameserver')
-        self.expired_reply_ttl = _gloabls_options.get('expired_reply_ttl', 1)
-        self.ttl_max = _gloabls_options.get('ttl_max', 7200)
-        self.ttl_min = _gloabls_options.get('ttl_min', 600)
-        self.fakeip_ttl = _gloabls_options.get('fakeip_ttl', 6)
+        self.expired_reply_ttl = _gloabls_options.get('expired_reply_ttl', TomlConfigures.TTL_EXPIRED_REPLY)
+        self.ttl_max = _gloabls_options.get('ttl_max', TomlConfigures.TTL_MAX)
+        self.ttl_min = _gloabls_options.get('ttl_min', TomlConfigures.TTL_MIN)
+        self.fakeip_ttl = _gloabls_options.get('fakeip_ttl', TomlConfigures.TTL_FAKEIP)
         self.response_mode = _gloabls_options.get('response_mode', "first-response")
-        self.timeout = _gloabls_options.get('timeout', 3.0)
+        self.timeout = _gloabls_options.get('timeout', TomlConfigures.TIME_OUT)
         self.query_threshold = _gloabls_options.get('query_threshold')
-        self.soa = _gloabls_options.get('soa', ['ptr'])
+        self.soa = _gloabls_options.get('soa', TomlConfigures.SOA_LIST)
         self.cache_persist = _gloabls_options.get('cache_persist', False)
-        self.cache_file = _gloabls_options.get('cache_file', f"/var/log/{str(__package__).lower()}.cache")
+        self.cache_file = _gloabls_options.get('cache_file', TomlConfigures.CACHE_FILE)
         self.tls_cert = _gloabls_options.get('tls_cert')
         self.tls_cert_key = _gloabls_options.get('tls_cert_key')
         self.tls_cert_ca = _gloabls_options.get('tls_cert_ca')
 
-        self.logfile = _logs_options.get('logfile')
-        self.logerror = _logs_options.get('logerror')
-        self.loglevel = _logs_options.get('loglevel')
-        self.logsize = _logs_options.get('logsize')
-        self.logcounts = _logs_options.get('logcounts')
+        self.logfile = _logs_options.get('logfile', TomlConfigures.LOG_FILE)
+        self.logerror = _logs_options.get('logerror', TomlConfigures.LOG_ERROR)
+        self.loglevel = _logs_options.get('loglevel', TomlConfigures.LOG_LEVEL)
+        self.logsize = _logs_options.get('logsize', TomlConfigures.LOG_SIZE)
+        self.logcounts = _logs_options.get('logcounts', TomlConfigures.LOG_COUNTS)
+
         network_log_server = _logs_options.get('network_log_server', None)
         if network_log_server:
             self.network_log_server = tuple(network_log_server.values())
