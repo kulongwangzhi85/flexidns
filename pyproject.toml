@@ -20,7 +20,7 @@ classifiers = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/kulongwangzhi85/flexidns/tree/main"
+"Homepage" = "https://github.com/kulongwangzhi85/flexidns.git"
 
 [project.optional-dependencies]
 uvloop = ["uvloop >= 0.17.0"]
@@ -41,11 +41,6 @@ dependencies = { file = ["requirements.txt"] }
 'bin' = ["src/flexidns"]
 'etc/flexidns' = ['src/etc/flexidns/config.toml']
 'lib/systemd/system' = ['flexidns.service']
-'etc/flexidns/ssl' = [
-    'src/etc/flexidns/ssl/ca.cer',
-    'src/etc/flexidns/ssl/xxx.xx.cer',
-    'src/etc/flexidns/ssl/xxx.xx.key',
-]
 'etc/flexidns/list' = [
     'src/etc/flexidns/list/anti-ad-domains.txt',
     'src/etc/flexidns/list/google-cn.txt',
