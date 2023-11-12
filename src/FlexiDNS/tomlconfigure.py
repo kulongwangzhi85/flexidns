@@ -150,7 +150,7 @@ class Configures_Structure:
         self.tls_cert_key = inittomlconfig.tls_cert_key
         self.tls_cert_ca = inittomlconfig.tls_cert_ca
         self.fakeip_ttl = inittomlconfig.fakeip_ttl
-        self.default_upstream_rule = inittomlconfig.default_upstream_rule.pop()
+        self.default_upstream_rule = inittomlconfig.default_upstream_rule
         self.default_upstream_server = inittomlconfig.default_upstream_server
         self.response_mode = inittomlconfig.response_mode
         self.speedtcpport = inittomlconfig.speedtcpport
@@ -360,24 +360,11 @@ class TomlConfigures:
                     self.fakeip_match = None
                     self.fakeip_upserver = None
 
-        set_upstreams = set()
-        self.default_upstream_rule = set()
-
-        upstreams_name = self._set_usage[0].get('domain-set').get('upstreams').keys()
-
-        for i in upstreams_name:
-            set_upstreams.add(i)
-
-        for i in self.dnsservers.keys():
-            self.default_upstream_rule.add(i)
-
-        self.default_upstream_rule.difference_update(set_upstreams)
-        if len(self.default_upstream_rule) > 1:
-            self.default_upstream_rule.pop()
-
-        for i in self.default_upstream_rule:
-            self.default_upstream_server = (self.dnsservers.get(i))
-        # 获取默认上游
+        for k, v in self.dnsservers.items(): # 获取默认上游, dnsserver中i第一个列表作为默认
+            self.default_upstream_server = v
+            self.default_upstream_rule = k
+            if self.default_upstream_rule is not None and self.default_upstream_server is not None:
+                break
 
         _tmp_rule_miss = set()
 
@@ -481,12 +468,33 @@ class TomlConfigures:
                 _set_value.update({'list': path.join(self.basedir, lists)})
         self.ipset = _ip_set_options
 
-        # 验证set-usage值在ip-set中是否存在
+        # 验证set-usage值在ip-set中是否存在相应的IP列表集合
         _set_usage  = deepcopy(self._set_usage[0])
         for ipset_name in _set_usage.get('domain-set').get('ip-set'):
             ipset_value = self.ipset.get(ipset_name)
             if ipset_value is None:
                 self._set_usage[0].get('domain-set').get('ip-set').pop(ipset_name)
+
+        # 验证set-usage值在domainname-set中是否存在相应的域名列表集合
+        _set_usage  = deepcopy(self._set_usage[0])
+        for ipset_name in _set_usage.get('domain-set').get('ip-set'):
+            ipset_value = self.domainname_set_options.get(ipset_name)
+            if ipset_value is None:
+                self._set_usage[0].get('domain-set').get('ip-set').pop(ipset_name)
+
+        # 验证set-usage值在domainname-set中是否存在相应的域名列表集合
+        _set_usage  = deepcopy(self._set_usage[0])
+        for domainnameset_name in _set_usage.get('domain-set').get('upstreams'):
+            domainnameset_value = self.domainname_set_options.get(domainnameset_name)
+            if domainnameset_value is None:
+                self._set_usage[0].get('domain-set').get('upstreams').pop(domainnameset_name)
+
+        # 验证set-usage值在ad-set中是否存在相应的域名列表集合
+        _set_usage  = deepcopy(self._set_usage[0])
+        for blacklistset_name in _set_usage.get('domain-set').get('blacklist'):
+            blacklistset_value = self.domainname_set_options.get(blacklistset_name)
+            if blacklistset_value is None:
+                self._set_usage[0].get('domain-set').get('blacklist').pop(blacklistset_name)
 
     def check_ip(self, ip):
         try:
