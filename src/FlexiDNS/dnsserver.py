@@ -203,13 +203,15 @@ class QueueHandler(DNSRecord):
                 for rr, auth in zip_longest(self.rr, self.auth, fillvalue=None):
 
                     if rr:
-                        logger.debug(f'original rr ttl: {rr.ttl}')
+                        logger.debug(f'original rr ttl: {rr.ttl}, you set minttl is {min_ttl}, maxttl is {max_ttl}')
                         if rr.ttl <= min_ttl:
                             rrttl = min_ttl
                             rr.ttl = rrttl
                         elif rr.ttl >= max_ttl:
                             rrttl = max_ttl
                             rr.ttl = rrttl
+                        else:
+                            rrttl = rr.ttl
 
                     if auth:
                         logger.debug(f'original auth ttl: {auth.ttl}')
