@@ -110,13 +110,13 @@ class Share_Objects_Structure:
 class Configures_Structure:
 
     # 定义初始值或默认值
-    pidfile = f'/run/{str(__package__).lower()}.pid'
+    pidfile = f'/run/{__package__.lower()}.pid'
     blacklist: list = field(default_factory=lambda: [])
     blacklist_rcode: str = "success"
     default_rule: urandom = urandom(12).hex()
     default_server: dict = field(default_factory=lambda: {"udp": "[::1]:53"})
     ipset: dict = field(default_factory=lambda: {})
-    mmapfile: str = f"/dev/shm/{str(__package__).lower()}.mmap"
+    mmapfile: str = f"/dev/shm/{__package__.lower()}.mmap"
     rulesjson: dict = field(default_factory=lambda: {})
     lru_maxsize: int = 4096
     tls_cert: str = ""
@@ -124,7 +124,7 @@ class Configures_Structure:
     tls_cert_ca: str = ""
     nameserver: str = ""
     static_rule: urandom = urandom(12).hex()
-    sockfile: str = f"/dev/shm/{str(__package__).lower()}.sock"
+    sockfile: str = f"/tmp/{__package__.lower()}.sock"
     server: list = field(default_factory=lambda: [])
     soa_list: set = field(default_factory=lambda: {
         QTYPE.__getattr__('ptr'.upper()), })
@@ -211,12 +211,12 @@ class Configures_Structure:
 
 
 class TomlConfigures:
-    CACHE_FILE =  f'/var/log/{str(__package__).lower()}.cache'
+    CACHE_FILE =  f'/var/log/{__package__.lower()}.cache'
     TIME_OUT = 3.0
     SOA_LIST = ['ptr']
 
-    LOG_FILE = f'/var/log/{str(__package__).lower()}.log'
-    LOG_ERROR = f'/var/log/{str(__package__).lower()}_err.log'
+    LOG_FILE = f'/var/log/{__package__.lower()}.log'
+    LOG_ERROR = f'/var/log/{__package__.lower()}_err.log'
     LOG_LEVEL = 'debug'
     LOG_SIZE = 1
     LOG_COUNTS = 3
@@ -225,6 +225,8 @@ class TomlConfigures:
     TTL_MIN = 600
     TTL_FAKEIP = 6
     TTL_EXPIRED_REPLY = 1
+
+    DEFAULT_SERVER = {'udp': ':53'}
 
     DEFAULT_UPSTREAMS = {
         'default': [
@@ -255,7 +257,7 @@ class TomlConfigures:
             config_data = tomllib.load(f)
 
         _gloabls_options = config_data.get('globals', {})
-        _server_options = config_data.get('server', {'udp': ':53'})
+        _server_options = config_data.get('server', TomlConfigures.DEFAULT_SERVER)
 
         _logs_options = config_data.get('logs', {
             'logfile': TomlConfigures.LOG_FILE,
