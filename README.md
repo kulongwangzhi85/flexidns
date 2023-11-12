@@ -3,7 +3,7 @@
 **本项目主要用于学习Python开发，学习Python语法，以及算法**
 
 **NOTE**: 已知问题
-1. 缓存未做缓存击穿处理(不影响正常使用)
+1. 缓存未做缓存击穿处理(不影响正常使用, 影响压测)
 
 ## 一、实现目标
 1. 多组DNS上游服务器
@@ -23,15 +23,15 @@
 8. 支持tls, doq协议
 9. 使用命令行查询缓存报告
 
----
 以上为已经实现
+---
 ## 二、未来计划
 1. 根据学习Python情况，修改代码使其更规范
 2. 支持https协议
 3. 根据性能情况，实现正则匹配域名
 4. 自动下载更新域名集合列表与IP集合列表
 5. 使用tcp进行速度探测（使用linux内核提供链接表进行探测，不使用固定端口探测）
-6. 使用命令参数进行在线配置
+6. 使用命令参数进行在线配置(部分实现)
 
 ## 三、使用方法
 ### 安装
@@ -47,8 +47,8 @@ pip3 install -r requirements.txt
 ```
 3. 启动服务
 ```shell
-touch config.toml #空文件
-sudo ./src/flexidns start --config ./config.toml
+touch config_none.toml #空文件
+sudo ./src/flexidns start --config ./config_none.toml
 或
 sudo ./src/flexidns start --config ./src/etc/flexidns/config.toml
 ```
@@ -60,12 +60,12 @@ sudo ./src/flexidns stop
 **NOTE**: 使用空配置文件时，会使用以下默认值启动服务
 ##### 默认值
 ```python
-    CACHE_FILE =  f'/var/log/{str(__package__).lower()}.cache'
+    CACHE_FILE =  f'/var/log/{__package__.lower()}.cache'
     TIME_OUT = 3.0
     SOA_LIST = ['ptr']
 
-    LOG_FILE = f'/var/log/{str(__package__).lower()}.log'
-    LOG_ERROR = f'/var/log/{str(__package__).lower()}_err.log'
+    LOG_FILE = f'/var/log/{__package__.lower()}.log'
+    LOG_ERROR = f'/var/log/{__package__.lower()}_err.log'
     LOG_LEVEL = 'debug'
     LOG_SIZE = 1
     LOG_COUNTS = 3
@@ -74,6 +74,8 @@ sudo ./src/flexidns stop
     TTL_MIN = 600
     TTL_FAKEIP = 6
     TTL_EXPIRED_REPLY = 1
+
+    DEFAULT_SERVER = {'udp': ':53'}
 
     DEFAULT_UPSTREAMS = {
         'default': [
@@ -95,6 +97,8 @@ sudo ./src/flexidns stop
             }
         },
     ]
+
+    ... ...
 ```
 #### 打包安装
 1. 克隆或下载
@@ -121,14 +125,14 @@ pip3 install FlexiDNS-1.1.0.dev\*-py3-none-any.whl
 *sys.prefix*路径
 * 如果使用系统软件包管理工具进行安装的python，sys.prefix为`/usr/`
 * 使用源码编译的python，则为编译prefix参数指定, 如果未指定。大部分为`/usr/local`
+* venv环境`sys.prefix`路径为vnev路径（虚拟环境下可不打包），直接启动服务
 * 配置文件路径:`<prefix>/etc/flexidns/`
 * 主命令文件路径: `<prefix>/bin/`
 
 5. 启动服务
 ```shell
-touch config.toml #空配置文件
-
-sudo flexidns start --config ./config.toml
+touch config_none.toml #空配置文件
+sudo flexidns start --config ./config_none.toml
 或
 sudo flexidns start --config ./src/etc/flexidns/config.toml
 或
@@ -143,22 +147,8 @@ sudo systemctl stop flexidns.service
 sudo flexidns stop
 ```
 
-1. hosts配置
-配置文件格式采用与linux系统下的/etc/hosts文件格式相同，
-一行一个规则，一个域名可配置多个ipv4与ipv6地址
-\#为注释行，将该行设置为不生效行
-**格式**
-`IP DOMAINNAME`
+## 四、详细配置
+略
 
-### RCode - dns响应代码
-| RCode | 描述 |
-| --- | --- |
-| success | 无错误 |
-| format_error | 请求格式错误 |
-| server_failure | 服务器出错 |
-| name_error | 域名不存在 |
-| not_implemented | 功能未实现 |
-| refused | 请求被拒绝 |
-
-## 四、许可协议
+## 五、许可协议
 FlexiDNS 遵循GPL v3.0协议
