@@ -125,7 +125,7 @@ pip3 install FlexiDNS-1.1.0.dev\*-py3-none-any.whl
 *sys.prefix*路径
 * 如果使用系统软件包管理工具进行安装的python，sys.prefix为`/usr/`
 * 使用源码编译的python，则为编译prefix参数指定, 如果未指定。大部分为`/usr/local`
-* venv环境`sys.prefix`路径为vnev路径（虚拟环境下可不打包），直接启动服务
+* venv环境`sys.prefix`路径为venv路径（虚拟环境下可不打包），直接启动服务
 * 配置文件路径:`<prefix>/etc/flexidns/`
 * 主命令文件路径: `<prefix>/bin/`
 
