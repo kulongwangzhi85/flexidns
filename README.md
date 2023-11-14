@@ -148,7 +148,8 @@ sudo flexidns stop
 ```
 
 ## 四、详细配置
-略
+
+[详见](https://github.com/kulongwangzhi85/flexidns/blob/main/docs/guide/zh-CN/config.md)
 
 ## 五、许可协议
 FlexiDNS 遵循GPL v3.0协议
