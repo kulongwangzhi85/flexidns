@@ -44,7 +44,7 @@ test_mmaps:
     script: 
       - "python tests/test_dnsmmap.py"
 
-test_mmaps:
+test_tomlconfigs:
     stage: test
     tags:
       - unittest
