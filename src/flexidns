@@ -71,7 +71,7 @@ def parse_arguments():
     rule_me_group = rule_group.add_mutually_exclusive_group(required=True)
     rule_me_group.add_argument('-n', '--name', nargs='+', metavar='<domain name>', dest='name', action='extend', help='view or modify specitied domain name rule information')
     rule_me_group.add_argument('-d', '--delete', nargs='+', metavar='<domain name>', dest='delete', action='extend', help='delete specitied domain name rule from rules cacheed')
-    rule_group.add_argument('-r', '--rule', type=str, metavar='<new rule>',dest='rule', action='store', help='modify rule to new rule')
+    rule_group.add_argument('-r', '--rule', type=str, metavar='<target rule>',dest='rule', action='store', help='modify rule to target rule')
     rule_me_group.add_argument('-c', '--count', default=False, action='store_true', help='view rule counts')
     rule_me_group.add_argument('-s', '--show', dest='show', action='store_true', default=False, help='display dns rules')
     rule_group.set_defaults(rule_func=rules_cli)

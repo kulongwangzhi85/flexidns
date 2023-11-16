@@ -59,7 +59,7 @@ flexidns rules  --help
 ```
 
 ```shell
-usage: FlexiDNS rules [-h] [-n <domain name> [<domain name> ...]] [-d <domain name> [<domain name> ...]] [-r <new rule>] [-c] [-s]
+usage: FlexiDNS rules [-h] [-n <domain name> [<domain name> ...]] [-d <domain name> [<domain name> ...]] [-r <target rule>] [-c] [-s]
 
 options:
   -h, --help            show this help message and exit
@@ -67,8 +67,8 @@ options:
                         view or modify specitied domain name rule information
   -d <domain name> [<domain name> ...], --delete <domain name> [<domain name> ...]
                         delete specitied domain name rule from rules cacheed
-  -r <new rule>, --rule <new rule>
-                        modify rule to new rule
+  -r <target rule>, --rule <target rule>
+                        modify rule to target rule
   -c, --count           view rule counts
   -s, --show            display dns rules
 
