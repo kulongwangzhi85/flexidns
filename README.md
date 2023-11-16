@@ -151,5 +151,9 @@ sudo flexidns stop
 
 [详见](https://github.com/kulongwangzhi85/flexidns/blob/main/docs/guide/zh-CN/config.md)
 
-## 五、许可协议
+## 五、flexidns命令使用
+
+[详见](https://github.com/kulongwangzhi85/flexidns/blob/main/docs/guide/zh-CN/command.md)
+
+## 六、许可协议
 FlexiDNS 遵循GPL v3.0协议
