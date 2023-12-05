@@ -66,6 +66,9 @@ class Test_TomlConfigure(unittest.TestCase):
         self.assertIsNone(self.configs.edns0_ipv4_address)
         self.assertIsNone(self.configs.edns0_ipv6_address)
 
+    def test_configs_value(self):
+        self.assertGreaterEqual(self.configs.lru_maxsize, 4096)
+
     def test_vaild_path(self):
         self.assertTrue(os.path.isabs(self.configs.cache_file))
         self.assertTrue(os.path.isabs(self.configs.logfile))
