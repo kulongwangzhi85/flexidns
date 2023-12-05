@@ -6,6 +6,7 @@
 用于两个进程间，单向传递数据
 """
 
+from array import array
 import mmap
 import typing as t
 from logging import getLogger
@@ -61,48 +62,55 @@ class CircularBuffer:
         """
         is_full:bool = False
         start_location: HEAD = 0
-        end_location: TAIL = (0, 0)
+        end_location_head = 0
+        end_location_end = 0
+        data_arrary = array('H', [start_location, end_location_head, end_location_end])
         size:int = self.size
 
         while True:
-            datasize: int = yield [start_location, end_location]
+            data_arrary[0] = start_location
+            data_arrary[1] = end_location_head
+            data_arrary[2] = end_location_end
+            datasize: int = yield data_arrary
             if datasize > size:
                 logger.error(f'data size exceed mmap size, data size: {datasize}')
                 continue
 
             if is_full:
-                start_location = end_location[1]
+                start_location = end_location_end
+                end_location_head = 0
                 is_full = False
             else:
-                start_location = (start_location + end_location[1]) % size
+                start_location = (start_location + end_location_end) % size
 
-            end_location = (0, datasize)
+            end_location_end = datasize
 
-            if (current_datasize := start_location + sum(end_location)) > size:
-                end_location = (size - start_location, abs(size - current_datasize))
+            if (current_datasize := start_location + (end_location_head + end_location_end)) > size:
+                end_location_head = size - start_location
+                end_location_end = abs(size - current_datasize)
                 is_full = True
 
     def read(self, locations: DATA_LOCATION) -> bytes:
         self.mm.seek(locations[0])
-        if locations[1][0] > 0:
+        if locations[1] > 0:
             tmp_data = bytearray()
-            tmp_data.extend(self.mm.read(locations[1][0]))
+            tmp_data.extend(self.mm.read(locations[1]))
             self.mm.seek(0)
-            tmp_data.extend(self.mm.read(locations[1][1]))
-            return bytes(tmp_data)
+            tmp_data.extend(self.mm.read(locations[2]))
+            return tmp_data
         else:
-            return self.mm.read(locations[1][1])
+            return self.mm.read(locations[2])
 
     def write(self, data: bytes) -> DATA_LOCATION:
 
         data_amount = self.locations.send(datasize:=len(data))
         self.mm.seek(data_amount[0])
 
-        if data_amount[1][0] > 0:
+        if data_amount[1] > 0:
             memv_data = memoryview(data)
-            self.mm.write(memv_data[0:data_amount[1][0]])
+            self.mm.write(memv_data[0:data_amount[1]])
             self.mm.seek(0)
-            self.mm.write(memv_data[data_amount[1][0]:datasize])
+            self.mm.write(memv_data[data_amount[1]:])
         else:
             self.mm.write(data)
 

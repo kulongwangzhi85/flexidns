@@ -93,6 +93,7 @@ async def write_wait(writer):
 async def datastream_query_tasks(dnspkg, server):
     """tcp查询
     """
+    data = bytearray()
     logger.debug(f'server {server[0]} edns0 ext: {server[3]}')
     reader, writer = await asyncio.open_connection(host=server[0], port=server[1])
 
@@ -110,16 +111,16 @@ async def datastream_query_tasks(dnspkg, server):
         bytes_struct_package_length = await reader.read(2)
     except ConnectionResetError:
         logger.error('asyncio Connection refused error')
-
-    struct_package_length = struct.unpack('!H', bytes_struct_package_length)[0]
-    data = await reader.read(struct_package_length)
-    logger.debug(f'asyncio received dns over tcp data: {data}')
-
-    writer.close()
+    else:
+        struct_package_length = struct.unpack('!H', bytes_struct_package_length)[0]
+        data.extend(await reader.read(struct_package_length))
+        logger.debug(f'asyncio received dns over tcp data')
+    finally:
+        writer.close()
 
     asyncio.create_task(write_wait(writer))
 
-    if isinstance(data, bytes):
+    if len(data) > 0:
         return data
 
 

@@ -4,6 +4,7 @@
 
 import unittest
 import os
+from array import array
 from import_path import FlexiDNS, project_rootpath
 
 class Shares_Ojbect_Tests:
@@ -14,8 +15,6 @@ class Shares_Ojbect_Tests:
 
         self.dnsmmap = CircularBuffer(share_objects.ipc_mmap, share_objects.ipc_mmap_size)
         self.example_by_write_data = bytearray(b'1234567890abcdef')
-        self.data_amount = []
-
 
 def create_test_suite():
     suite = unittest.TestSuite()
@@ -34,6 +33,9 @@ class Test_MMap(unittest.TestCase):
     def tearDown(self):
         pass
 
+    def setUp(self):
+        self.data_amount = array('H', [0, 0, 16])
+
     def test_datalocation(self):
         """
         测试 __data_location()方法
@@ -41,13 +43,15 @@ class Test_MMap(unittest.TestCase):
         """
 
         suite.share_obj.data_amount = suite.share_obj.dnsmmap.locations.send(len(suite.share_obj.example_by_write_data))
-        self.assertListEqual(suite.share_obj.data_amount, [0, (0, 16)])
+        self.assertEqual(suite.share_obj.data_amount, self.data_amount)
+        self.assertIsInstance(suite.share_obj.data_amount, array)
 
     def test_write_data(self):
         suite.share_obj.data_amount = suite.share_obj.dnsmmap.write(suite.share_obj.example_by_write_data)
 
     def test_read_dataamount(self):
-        self.assertListEqual(suite.share_obj.data_amount, [0, (0, 16)])
+        self.assertEqual(suite.share_obj.data_amount, self.data_amount)
+        self.assertIsInstance(suite.share_obj.data_amount, array)
 
     def test_read_data(self):
         data = suite.share_obj.dnsmmap.read(suite.share_obj.data_amount)
