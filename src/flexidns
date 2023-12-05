@@ -35,7 +35,7 @@ def parse_arguments():
         prog='FlexiDNS',
         add_help=True,
         description='Python Code Dns Server Cmd Line Options',
-        epilog='Copyright (c) 2020, 2021, HomePage https://github.com/2020-2021/PyDNS'
+        epilog='Copyright (c) 2020, 2021, HomePage https://github.com/kulongwangzhi85/flexidns'
     )
 
     sub_parser = parser.add_subparsers(

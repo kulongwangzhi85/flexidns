@@ -8,6 +8,7 @@
 
 from array import array
 from copy import deepcopy
+from collections import ChainMap
 from os import path as ospath, _exit
 from logging import getLogger
 from functools import reduce
@@ -16,7 +17,6 @@ from dnslib import DNSLabel
 from IPy import IP
 
 from .tomlconfigure import configs, share_objects
-from .dnscache import MyChainMap
 from .dnslog import dnsidAdapter
 from .dnslrucache import LRUCache
 
@@ -24,19 +24,19 @@ logger = getLogger(__name__)
 logger = dnsidAdapter(logger, {'dnsinfo': share_objects.contextvars_dnsinfo})
 
 
-class ChainMapRule(MyChainMap):
+class ChainMapRule(ChainMap):
     """
     由于cacheout.LRUCache类get()无法支持obj[x]方式，重載ChainMap中的get()方法
     以及添加add_many()与set_many()方法
     """
 
-    def __parallel_search(self, rulesfull, ruleswildcard, rulesstatic, key):
-        if (result := rulesfull.get(key)) or (result := rulesstatic.get(key)) or (result := rulesearch.back_search(key, ruleswildcard)):
+    def __parallel_search(self, customizerules, rulesfull, ruleswildcard, rulesstatic, key):
+        if (result := customizerules.get(key)) or (result := rulesfull.get(key)) or (result := rulesstatic.get(key)) or (result := rulesearch.back_search(key, ruleswildcard)):
             return result
 
     def __getitem__(self, key):
         result = set(
-            filter(None, map(lambda rulesfull, ruleswildcard, rulesstatic: self.__parallel_search(rulesfull, ruleswildcard, rulesstatic, key), [self.maps[0]], [self.maps[1]], [self.maps[2]])))
+            filter(None, map(lambda customizerules, rulesfull, ruleswildcard, rulesstatic: self.__parallel_search(customizerules, rulesfull, ruleswildcard, rulesstatic, key), [self.maps[0]], [self.maps[1]], [self.maps[2]], [self.maps[3]])))
         if len(result) == 0:
             return None
         else:
@@ -45,6 +45,23 @@ class ChainMapRule(MyChainMap):
     def get(self, key):
         return self.__getitem__(key)
 
+    def add_many(self, data):
+        for key, value in data.items():
+            self.maps[1].add_many({key: value})
+
+    def set_many(self, data):
+        self.add_many(data)
+
+    def __delitem__(self, key):
+        for mapping in self.maps:
+            if key in mapping:
+                if isinstance(mapping, LRUCache):
+                    mapping.delete(key)
+                    return True
+                if isinstance(mapping, dict):
+                    mapping.pop(key)
+                    return True
+        return None
 
 class RULERepository:
     """用于处理rule规则加载到self.repositories中
@@ -333,6 +350,7 @@ class RULESearch(RULERepository):
     """
     __slots__ = (
         'searchcache',
+        'customizerules',
         'upserver',
         'new_cache',
         'rulesfull',
@@ -350,23 +368,32 @@ class RULESearch(RULERepository):
         super(RULESearch, self).__init__()
 
         self.configs = configs
+        self.customizerules = {}
+        # 用于自定义修改域名规则
+        # NOTE：如果将用户自定义rule存放与rulesfull，会因为lru算法将其删除
+
         self.rulesfull = LRUCache(maxsize=self.configs.lru_maxsize)
         # rulesfull: LRUCache({domain: rule1}, ...)
         # 用于存放非通配符域名规则，该字典优先于ruleswildcard
+
         self.rulesstatic = {}
         # 作为类似hosts，由手工设置的dns记录
         # rulesstatic: {domain: rule1, domain2: rule2,...}
+
         self.ruleswildcard = {}
         # ruleswildcard: 用于设置通配符域名规则，字典结构与rulestabs相同，该字典可缓存
         # 作用：使用cli命令： rules -n *.push.apple.com -r cn
         # 设置后push.apple.com下所有子域都将修改规则从proxy到cn
         # ruleswildcard: {'com': {'baidu': {'www': {'default-rule': 'cn'}, 'teiba':{'default-rule': 'cn'}}},...}
+
         self.searchcache = ChainMapRule(
+            self.customizerules,
             self.rulesfull,
             self.ruleswildcard,
             self.rulesstatic
         )
         # todo NOTE: 计划添加关键字匹配
+
         self.upserver = None
         self.none_results = {}
         self.upstream_cont = 0
@@ -395,7 +422,11 @@ class RULESearch(RULERepository):
         """用于pickle dump
         """
         logger.debug(f'pickle dump ruleswildcard: {self.ruleswildcard}')
-        return {'self.rulestabs': self.rulesfull.copy(), 'ruleswildcard': self.ruleswildcard}
+        return {
+            'self.rulestabs': self.rulesfull.copy(),
+            'ruleswildcard': self.ruleswildcard,
+            'customizerules': self.customizerules
+        }
 
     def __setstate__(self, data, **kwargs):
         """用于pickle load
@@ -403,7 +434,7 @@ class RULESearch(RULERepository):
         from collections import OrderedDict
         self.__init__()
         for k, v in data.items():
-            if isinstance(v, OrderedDict):
+            if k == 'self.rulestabs':
                 for rulescache_key, rulescache_value in v.items():
                     self.rulesfull.add_many({rulescache_key: rulescache_value})
             elif k == 'ruleswildcard':
@@ -417,6 +448,9 @@ class RULESearch(RULERepository):
                             break
                 get_key(v)
                 self.ruleswildcard.update(v)
+            elif k == 'customizerules':
+                self.customizerules.update(v)
+                logger.debug(f'customizerules: {self.customizerules}, v: {v}')
 
     def __getattr__(self, name):
         if name == "new_cache":
@@ -436,6 +470,7 @@ class RULESearch(RULERepository):
         缓存self.back_search(domainname) 返回结果
         搜索范围：
             重載ChainMapRule中的get方法，因此get顺序如下
+            self.customizerules,
             self.rulesfull,
             self.ruleswildcard,
             self.rulesstatic
@@ -486,9 +521,8 @@ class RULESearch(RULERepository):
             cacheobj = self.searchcache.get(domainname)
             if cacheobj:
                 del self.searchcache[domainname]
-                self.searchcache.maps[0].set_many({domainname: rule})
-            else:
-                self.searchcache.maps[0].add_many({domainname: rule})
+            self.searchcache.maps[0].update({domainname: rule})
+            logger.debug(f'searchcache: {self.searchcache.maps[0]}, get: {self.searchcache.get(domainname)}')
 
             query_name = DNSLabel(domainname)
             logger.debug(f'rule in modify cache rule: {query_name}, rule {rule}')
