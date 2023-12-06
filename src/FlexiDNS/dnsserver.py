@@ -351,11 +351,19 @@ class QueueHandler(DNSRecord):
             cachettl = self.new_cache.getttl(query_name, query_type, self.rules)
             logger.debug(f'ttl: {cachettl}')
 
-            if (cachettl is None or cachettl <= expired_reply_ttl) and self.rules not in configs.blacklist:
-                logger.debug(f'ttl timeout, use expired reply ttl {expired_reply_ttl}')
+            if cachettl is not None:
+                if self.rules in configs.blacklist and cachettl <= 1:
+                    cachettl = self.configs.ttl_max
+                    self.new_cache.setttl(self.q.qname, self.q.qtype, self.configs.ttl_max)
+                elif cachettl <= expired_reply_ttl:
+                    logger.debug(f'ttl timeout, use expired reply ttl {expired_reply_ttl}')
+                    cachettl = expired_reply_ttl
+                    await asyncio.create_task(self.none_cache_method(ttl_timeout_status=True))
+                    self.new_cache.deldata(query_name, query_type)
+            else:
+                logger.debug(f'no ttl cache data, use expired reply ttl {expired_reply_ttl}')
                 cachettl = expired_reply_ttl
                 await asyncio.create_task(self.none_cache_method(ttl_timeout_status=True))
-                self.new_cache.deldata(query_name, query_type)
 
             for key, value in self.cachedata.items():
                 match key:
