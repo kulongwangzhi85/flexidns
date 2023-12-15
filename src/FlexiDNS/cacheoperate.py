@@ -16,18 +16,20 @@ from signal import signal, SIGPIPE, SIG_DFL
 from prettytable import PrettyTable
 
 from .tomlconfigure import configs
+from .dnscache import lrucacheout
 
 signal(SIGPIPE, SIG_DFL)
 
 
 class CacheOperate:
     def __init__(self):
-        if os.path.exists(configs.sockfile):
+        from os import path, _exit
+        if path.exists(configs.sockfile):
             self.socket_file = configs.sockfile
         else:
             outerr_message = "Server is not running, please use command 'systemctl start flexidns' or 'flexidns start --config /path/etc/flexidns/config.toml'"
             print(outerr_message, flush=True, file=stderr)
-            os._exit(1)
+            _exit(1)
 
         self.mmap_file = configs.mmapfile
 
@@ -167,8 +169,22 @@ class CacheOperate:
                 return 
 
             if len(mmdata) > 0 or len(mmdata) == data_length:
-                for i in mmdata_bytes:
-                    print(i)
+
+                if type(mmdata_bytes) is set:
+                    for i in mmdata_bytes:
+                        print(i)
+                elif type(mmdata_bytes) is lrucacheout:
+                    for data in mmdata_bytes.search_cache.values():
+                        for i in data:
+                            for s in i:
+                                for x in s.values():
+                                    if isinstance(x, int):
+                                        continue
+                                    if len(x) > 0:
+                                        for xx in x:
+                                            print(xx)
+                                    else:
+                                        continue
             else:
                 print(
                     f'mmdata length: {len(mmdata)}, struct length: {data_length}, struct_data_length: {struct_data_length}')

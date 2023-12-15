@@ -17,7 +17,7 @@ class LRUCache:
     cache: t.Dict[t.Hashable, t.List]
     access_order: t.Deque[t.Hashable]
 
-    __slots__ = ('maxsize', 'cache', 'access_order')
+    __slots__ = ('maxsize', 'cache', 'access_order') 
 
     def __init__(self, maxsize: int = 256):
         self.maxsize = maxsize
@@ -45,7 +45,7 @@ class LRUCache:
             self.set(key, value)
 
     def __iter__(self):
-        return iter(self.cache)
+        return iter(self.cache.values())
 
     def __next__(self):
         return next(iter(self.cache))
@@ -58,26 +58,24 @@ class LRUCache:
             self.access_order.remove(key)
         except ValueError:
             logger.error(f'Key {key} not in cache')
+
         self.access_order.appendleft(key)
 
     def set(self, key: t.Hashable, value: t.List):
         if len(self.access_order) > self.maxsize:
-            if (pop_link := self.access_order.pop()) in self.cache:
-                self.cache.pop(pop_link)
+            self.cache.pop(self.access_order.pop(), None)
         self.cache[key] = value
         self.access_order.appendleft(key)
 
     def get(self, key: t.Hashable) -> t.List:
-        if key in self.cache:
+        if (result := self.cache.get(key, None)) is not None:
             self.move_to_end(key) # 访问缓存数据将移至头部
-            return self.cache.get(key, None)
-        else:
-            return None
+        return result
 
     def delete(self, key: t.Hashable):
         try:
+            self.cache.pop(key, None)
             self.access_order.remove(key)
-            self.cache.pop(key)
         except (ValueError, KeyError):
             logger.error(f'Key {key} not in cache')
 

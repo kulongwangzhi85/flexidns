@@ -203,7 +203,7 @@ class QueueHandler(DNSRecord):
                 for rr, auth in zip_longest(self.rr, self.auth, fillvalue=None):
 
                     if rr:
-                        logger.debug(f'original rr ttl: {rr.ttl}, you set minttl is {min_ttl}, maxttl is {max_ttl}')
+                        logger.debug(f'original rr ttl: {rr.ttl}')
                         if rr.ttl <= min_ttl:
                             rrttl = min_ttl
                             rr.ttl = rrttl
@@ -221,6 +221,8 @@ class QueueHandler(DNSRecord):
                         elif auth.ttl >= max_ttl:
                             rrttl = max_ttl
                             auth.ttl = rrttl
+                        else:
+                            rrttl = auth.ttl
 
                 self.new_cache.setttl(self.q.qname, self.q.qtype, rrttl)
                 self.new_cache.setdata(self)
