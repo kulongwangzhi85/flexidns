@@ -43,39 +43,23 @@ class ManagerMmap:
         self.__getattr__('rulesearch')
         return dir(self)
 
-    def __serialization(self, alist):
-        """将cache序列化为list别表
-        """
-        data_container = set()
-
-        for aa in filter(None, alist.values()):
-            for bb in filter(None, aa.values()):
-                for c, cc in filter(None, bb.items()):
-                    if c != 'ar':
-                        if isinstance(cc, int):
-                            continue
-                        for i in cc:
-                            data_container.add(str(i))
-        return data_container
-
     def __send_data(self, data):
         BASE_SIZE = [65535,]
         ''' 此处使用struct封装后，向客户端socket发送数据
         struct结构：
-    
+
         1、2 bytes: 固定2字节长度
         作用：携带的数据为，第二部分跟随的数据长度边界
         内容：整数值，可容纳整数范围根据struct格式字符，这里使用H，占用2字节，可包含0-65535整数值
         含义：n个格式字符，例如3,这样也就知道跟随的数据有3个H，每个H，2个字节
-    
+
         2、2-x bytes： 不固定字节长度
         作用：携带的数据为，数据长度
         内容：n个H，n由第一步携带数据获得。例如3H，struct数据内容根据根据实际数据长度65535, 65535, 1024，客户端使用sum()方法即可知道数据的完整长度
-    
+
         3、x-x bytes:  不固定定字节长度 作用：数据本体
         注意：由于第一个2bytes使用固定长度，因此只能容纳0-65535，也就是说明第二个报文内只能容纳65536个H，因此该方法最大只支持4GiB大小的数据传输
         改进：未来如果需要传输大于4GiB的数据，可以将第二部分的struct格式字符由H修改为c，使用字符串方法传递数据长度
-    
         '''
         bytes_response_data = base64.b64encode(pickle.dumps(data))
         # bytes_response_data = base64.b64encode(bytes(str(data), 'utf-8'))
@@ -218,8 +202,7 @@ class ManagerMmap:
         match command.get('cmd'):
             case 'show':
                 if command.get('all'):
-                    datalist = self.__serialization(
-                        self.new_cache.search_cache)
+                    datalist = self.new_cache
                 elif command.get('qname'):
                     query_list = []
                     datalist = set()

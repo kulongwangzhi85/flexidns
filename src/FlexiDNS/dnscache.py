@@ -23,7 +23,6 @@ from .tomlconfigure import configs, share_objects
 from .dnslrucache import LRUCache
 
 logger = getLogger(__name__)
-logger = dnsidAdapter(logger, {'dnsinfo': share_objects.contextvars_dnsinfo})
 
 
 class MyChainMap(ChainMap):
@@ -31,30 +30,43 @@ class MyChainMap(ChainMap):
     由于cacheout.LRUCache类get()无法支持obj[x]方式，重載ChainMap中的get()方法
     以及添加add_many()与set_many()方法
     """
+    __slots__ = ('result')
 
-    def __parallel_search(self, list_x, key):
-        return list_x.get(key)
+    def __init__(self, *maps) -> None:
+        super().__init__(*maps)
+
+        self.result = list()
+        self.index = 0
 
     def __getitem__(self, key):
-        result = list(filter(None, map(lambda i: self.__parallel_search(i, key), self.maps)))
-        if len(result) == 0:
+        self.result.clear()
+        self.result.extend(filter(None, map(lambda i: i.get(key), self.maps)))
+        if len(self.result) == 0:
             return None
         else:
-            return result.pop()
+            return self.result.pop()
+
+    def get(self, key):
+        return self.__getitem__(key)
 
     def __delitem__(self, key):
         for mapping in self.maps:
-            if key in mapping:
-                if isinstance(mapping, LRUCache):
-                    mapping.delete(key)
-                    return True
-                if isinstance(mapping, dict):
-                    mapping.pop(key)
-                    return True
-        return None
+            if isinstance(mapping, LRUCache):
+                mapping.delete(key)
+            if isinstance(mapping, dict):
+                mapping.pop(key, None)
 
     def __iter__(self):
-        return super().__iter__()
+        return self
+
+    def __next__(self):
+        if self.index < len(self.maps):
+            result = self.maps[self.index]
+            self.index += 1
+            return result
+        else:
+            self.index = 0
+            raise StopIteration
 
     def add_many(self, data):
         for key, value in data.items():
@@ -391,7 +403,8 @@ def loader_static_domainname(static_domainname_set: dict):
 
 
 def module_init():
-    global new_cache
+    global new_cache, logger
+    logger = dnsidAdapter(logger, {'dnsinfo': share_objects.contextvars_dnsinfo})
 
     if configs.cache_persist and ospath.exists(configs.cache_file):
         from .dnspickle import deserialize
