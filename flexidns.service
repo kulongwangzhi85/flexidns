@@ -9,11 +9,7 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStart=flexidns start --config /usr/local/etc/flexidns/config.toml
 ExecStop=flexidns stop
-Restart=on-failure
-PrivateTmp=true
-KillMode=process
-KillSignal=SIGINT
-TimeoutSec=5
+Restart=no
 
 [Install]
 WantedBy=multi-user.target

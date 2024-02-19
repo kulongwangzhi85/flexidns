@@ -30,7 +30,7 @@ class MyChainMap(ChainMap):
     由于cacheout.LRUCache类get()无法支持obj[x]方式，重載ChainMap中的get()方法
     以及添加add_many()与set_many()方法
     """
-    __slots__ = ('result')
+    __slots__ = ('result', 'index')
 
     def __init__(self, *maps) -> None:
         super().__init__(*maps)
