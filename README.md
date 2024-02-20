@@ -155,5 +155,39 @@ sudo flexidns stop
 
 [详见](https://github.com/kulongwangzhi85/flexidns/blob/main/docs/guide/zh-CN/command.md)
 
+## 六、压测
+
+**不严谨**
+
+### 环境
+
+- 笔记本
+- 软件dnsperf: Version 2.11.2
+- cpu: Intel(R) Core(TM) i5-1240P
+- 进程作用：1进程dns客户端与日志线程，2进程dns服务器端
+- dnsperf与dns服务器在同一台笔记本
+
+> **服务器模式为单进程asyncio**
+
+1. 日志级别ERROR
+
+![image01](https://github.com/kulongwangzhi85/flexidns/blob/main/docs/images/dnsperf01.png)
+
+> 正在压测时的cpu使用率
+
+![image02](https://github.com/kulongwangzhi85/flexidns/blob/main/docs/images/dnsperf02.png)
+
+2. 日志级别CRITICAL
+
+![image04](https://github.com/kulongwangzhi85/flexidns/blob/main/docs/images/dnsperf04_disablelog.png)
+
+> 正在压测时的cpu使用率
+
+![image03](https://github.com/kulongwangzhi85/flexidns/blob/main/docs/images/dnsperf03_disablelog.png)
+
+![image05](https://github.com/kulongwangzhi85/flexidns/blob/main/docs/images/dnsperf05_disablelog.png)
+
+*Python日志对性能的影响非常大*
+
 ## 六、许可协议
 FlexiDNS 遵循GPL v3.0协议
