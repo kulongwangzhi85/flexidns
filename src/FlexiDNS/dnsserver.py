@@ -125,6 +125,9 @@ class QueueHandler(DNSRecord):
 
         logger.debug(f'rule select from upstreams rule: {self.rules}, hit cache: {self.cachedata}')
 
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}({self.rr, self.ar, self.auth})'
+
     @classmethod
     def parse(cls, packet, **kwargs):
         if kwargs:
