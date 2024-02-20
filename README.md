@@ -155,7 +155,7 @@ sudo flexidns stop
 
 [详见](https://github.com/kulongwangzhi85/flexidns/blob/main/docs/guide/zh-CN/command.md)
 
-## 六、压测
+## 六、缓存压测
 
 **不严谨**
 
@@ -169,7 +169,7 @@ sudo flexidns stop
 
 > **服务器模式为单进程asyncio**
 
-1. 日志级别ERROR
+1. 日志级别DEBUG
 
 ![image01](https://github.com/kulongwangzhi85/flexidns/blob/main/docs/images/dnsperf01.png)
 

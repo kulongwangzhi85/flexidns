@@ -132,7 +132,7 @@ class Configures_Structure:
     def init(self, inittomlconfig):
         self.logfile = inittomlconfig.logfile
         self.logerror = inittomlconfig.logerror
-        self.loglevel = inittomlconfig.loglevel
+        self.loglevel = inittomlconfig.loglevel.lower()
         self.logfile_size = inittomlconfig.logsize * 1024 * 1024
         self.logfile_backupcount = inittomlconfig.logcounts
         self.nameserver = inittomlconfig.nameserver
