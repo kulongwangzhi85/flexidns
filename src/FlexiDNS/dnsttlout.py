@@ -20,14 +20,15 @@ from .tomlconfigure import share_objects
 from .dnsmmap_ipc import CircularBuffer
 
 logger = getLogger(__name__)
-contextvars_dnsinfo = share_objects.contextvars_dnsinfo
-logger = dnsidAdapter(logger, {'dnsinfo': contextvars_dnsinfo})
-
-contextvars_rules = contextvars.ContextVar('dnsrules', default=None)
 
 
 async def start_tasks():
+    global logger
     from .dnsupstream import query_create_tasklist
+    contextvars_dnsinfo = share_objects.contextvars_dnsinfo
+    logger = dnsidAdapter(logger, {'dnsinfo': contextvars_dnsinfo})
+
+    contextvars_rules = contextvars.ContextVar('dnsrules', default=None)
 
     ttl_timeout_recv = share_objects.ttl_timeout_recv
     ttl_timeout_response_send_fd = share_objects.ttl_timeout_response_send

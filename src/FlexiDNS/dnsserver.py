@@ -49,6 +49,9 @@ async def write_wait(writer):
 
 
 class QueueHandler(DNSRecord):
+    
+    client_address = None
+
     __slots__ = (
         'header', 'questions', 'rr', 'auth', 'ar', '_ar', 'edns0', 'non_edns0', 'response_header',
         'configs', 'sockfd', 'question_packet', 'sock', 'client', 'upserver', 'rules',
@@ -81,7 +84,7 @@ class QueueHandler(DNSRecord):
         self.configs = configs
         self.upserver = None
         self.sock = None
-        self.client = None
+        self.client = QueueHandler.client_address or None
         self.non_edns0 = None
         self.edns0 = None
         self.cachedata = None
@@ -117,12 +120,18 @@ class QueueHandler(DNSRecord):
         logger.debug('init dns package')
 
         self.cachedata = self.new_cache.getdata(self.q.qname, self.q.qtype)
+        logger.debug('get cache time')
         self.rules = self.rulesearch.search(str(self.q.qname), repositorie='upstreams-checkpoint')
 
         logger.debug(f'rule select from upstreams rule: {self.rules}, hit cache: {self.cachedata}')
 
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}({self.rr, self.ar, self.auth})'
+
     @classmethod
-    def parse(cls, packet):
+    def parse(cls, packet, **kwargs):
+        if kwargs:
+            cls.client_address = kwargs['address']
         return super(QueueHandler, cls).parse(packet)
 
     def pack(self):
@@ -434,8 +443,7 @@ class QueueHandler(DNSRecord):
 
 
 async def response_dns_package(dnspkg):
-    sock = dnspkg.sock
-    if sock.get_extra_info('socket') is not None:
+    if (sock := dnspkg.sock) is not None:
         client = dnspkg.client
         data = dnspkg.pack()
         match sock.get_extra_info('socket').type:
@@ -468,7 +476,7 @@ class DnsServerDatagramProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data, addr):
         try:
-            dnspkg = QueueHandler.parse(data)
+            dnspkg = QueueHandler.parse(data, address=addr[0])
             logger.debug(f"udp recv a dns question packet")
         except DNSError as error:
             contextvars_dnsinfo.set({'address': addr[0], 'id': None, 'qname': None, 'qtype': None})
@@ -498,7 +506,8 @@ class DnsServerDatastramProtocol(asyncio.Protocol):
 
     def data_received(self, data):
         try:
-            dnspkg = QueueHandler.parse(data[2:])
+            client = self.transport.get_extra_info('peername')
+            dnspkg = QueueHandler.parse(data[2:], address=client[0])
             logger.debug(f"tcp recv a dns question packet")
         except DNSError as error:
             contextvars_dnsinfo.set({'address': None, 'id': None, 'qname': None, 'qtype': None})
@@ -509,8 +518,7 @@ class DnsServerDatastramProtocol(asyncio.Protocol):
             logger.error(f"tcp recv not a dns packet: {error}")
             self.transport.close()
         else:
-            asyncio.create_task(dnspkg.handler(
-                self.transport, client=self.transport.get_extra_info('peername')))
+            asyncio.create_task(dnspkg.handler(self.transport, client=client))
 
 
 class CommandUnixProtocol:

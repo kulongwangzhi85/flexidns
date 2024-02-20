@@ -39,6 +39,27 @@ class dnsidAdapter(LoggerAdapter):
                            'qname': qname, 'qtype': qtype}
         return msg, kwargs
 
+class LogTooLongFilter(Formatter):
+    """
+    用于检查单行日志长度
+    """
+    def __init__(self, msg_length = 200):
+
+        fmt='%(asctime)s.%(msecs)03d [ %(levelname)s %(module)s L%(lineno)d <%(ip)s> id: %(dnsid)s qname: %(qname)s qtype: %(qtype)s ] - %(message)s'
+        datefmt='%Y/%m/%d %H:%M:%S'
+        defaults={'ip': None, 'dnsid': None, 'qname': None, 'qtype': None}
+
+        super(LogTooLongFilter, self).__init__(
+                fmt=fmt,
+                datefmt=datefmt,
+                defaults=defaults
+                )
+        self.msg_length = msg_length
+
+    def format(self, record):
+        if len(record.msg) >= self.msg_length:
+            record.msg = record.msg[:self.msg_length] + ' ... ...'
+        return super().format(record)
 
 class MyLevelFilterError(Filter):
 
@@ -67,12 +88,13 @@ def loggerconfigurer():
     root = getLogger()
     root.setLevel(loglevels.get(loglevel))
 
-    pylog_fmt = Formatter(
-        fmt='%(asctime)s.%(msecs)03d [ %(levelname)s %(module)s L%(lineno)d <%(ip)s> id: %(dnsid)s qname: %(qname)s qtype: %(qtype)s ] - %(message)s',
-        datefmt='%Y/%m/%d %H:%M:%S',
-        style='%',
-        defaults={'ip': None, 'dnsid': None, 'qname': None, 'qtype': None},
-        validate=True)
+    # pylog_fmt = Formatter(
+    #     fmt='%(asctime)s.%(msecs)03d [ %(levelname)s %(module)s L%(lineno)d <%(ip)s> id: %(dnsid)s qname: %(qname)s qtype: %(qtype)s ] - %(message)s',
+    #     datefmt='%Y/%m/%d %H:%M:%S',
+    #     style='%',
+    #     defaults={'ip': None, 'dnsid': None, 'qname': None, 'qtype': None},
+    #     validate=True)
+    pylog_fmt = LogTooLongFilter()
 
     rotat_handler = RotatingFileHandler(
         logfile,
