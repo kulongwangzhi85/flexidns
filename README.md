@@ -187,6 +187,10 @@ sudo flexidns stop
 
 ![image05](https://github.com/kulongwangzhi85/flexidns/blob/main/docs/images/dnsperf05_disablelog.png)
 
+3. 使用uvloop
+
+![image05](https://github.com/kulongwangzhi85/flexidns/blob/main/docs/images/dnsperf06_disablelog_uvloop.png)
+
 *Python日志对性能的影响非常大*
 
 ## 六、许可协议
