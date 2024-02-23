@@ -19,6 +19,7 @@ from IPy import IP
 from .tomlconfigure import configs, share_objects
 from .dnslog import dnsidAdapter
 from .dnslrucache import LRUCache
+from .dnspickle import deserialize
 
 logger = getLogger(__name__)
 logger = dnsidAdapter(logger, {'dnsinfo': share_objects.contextvars_dnsinfo})
@@ -348,6 +349,9 @@ class RULERepository:
 class RULESearch(RULERepository):
     """查找域名,选择出上游DNS服务器集合名称
     """
+
+    __instance = None
+
     __slots__ = (
         'searchcache',
         'customizerules',
@@ -363,6 +367,11 @@ class RULESearch(RULERepository):
         'default_rule',
         'configs'
     )
+
+    def __new__(cls):
+        if not cls.__instance:
+            cls.__instance = super(RULESearch, cls).__new__(cls)
+        return cls.__instance
 
     def __init__(self):
         super(RULESearch, self).__init__()
@@ -431,7 +440,6 @@ class RULESearch(RULERepository):
     def __setstate__(self, data, **kwargs):
         """用于pickle load
         """
-        from collections import OrderedDict
         self.__init__()
         for k, v in data.items():
             if k == 'self.rulestabs':
@@ -488,11 +496,12 @@ class RULESearch(RULERepository):
                     logger.debug(f'in search cache hit, search result: {searchresult}')
                     return searchresult
                 else:
-                    logger.debug(f'enter in rule name: {repositorie}')
                     searchresult = self.back_search(domainname, self.repositories[repositorie])
-                    logger.debug(f'in search cache not hit, search result: {searchresult}')
+                    logger.debug(f'{repositorie} in search cache not hit, search result: {searchresult}')
                     if searchresult:
                         self.searchcache.add_many({domainname: searchresult})
+                    else:
+                        self.searchcache.add_many({domainname: self.configs.default_rule})
                     return searchresult
             case 'ip-sets-checkpoint':
                 if searchresult := self.back_search(domainname, self.repositories[repositorie]):
@@ -913,11 +922,13 @@ class IPRepostitory:
 
         return keylist
 
+rulesearch = None
+iprepostitory = None
+
 def module_init():
-    global rulesearch, iprepostitory 
-    iprepostitory = IPRepostitory()
+    global rulesearch, iprepostitory
+
     if configs.cache_persist and ospath.exists(configs.cache_file):
-        from .dnspickle import deserialize
         rulesearch = deserialize(RULESearch.__name__)
         if rulesearch is None:
             logger.debug('pickle data none or failed')
@@ -925,6 +936,7 @@ def module_init():
     else:
         rulesearch = RULESearch()
 
+    iprepostitory = IPRepostitory()
 
 if __name__ == '__main__':
     _exit(0)

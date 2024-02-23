@@ -32,10 +32,10 @@ class Share_Objects_Structure:
     def __init__(self):
         self.ttl_timeout_send, self.ttl_timeout_recv = Pipe()
         self.ttl_timeout_response_recv, self.ttl_timeout_response_send = pipe()
-
-    def init(self):
         self.contextvars_dnsinfo = contextvars.ContextVar(
             'dnsinfo', default=None)
+
+    def init(self):
         """
         ECS Select;
         OPTION_CODE:
@@ -101,7 +101,7 @@ class Share_Objects_Structure:
         else:
             self.OPTv6 = []
 
-        self.ipc_mmap_size: int = 4096
+        self.ipc_mmap_size: int = 4194304
         self.ipc_mmap = mmap.mmap(-1, self.ipc_mmap_size, flags=mmap.MAP_SHARED)
         self.ipc_01_mmap = mmap.mmap(-1, self.ipc_mmap_size, flags=mmap.MAP_SHARED)
 
@@ -132,7 +132,7 @@ class Configures_Structure:
     def init(self, inittomlconfig):
         self.logfile = inittomlconfig.logfile
         self.logerror = inittomlconfig.logerror
-        self.loglevel = inittomlconfig.loglevel.lower()
+        self.loglevel = inittomlconfig.loglevel
         self.logfile_size = inittomlconfig.logsize * 1024 * 1024
         self.logfile_backupcount = inittomlconfig.logcounts
         self.nameserver = inittomlconfig.nameserver

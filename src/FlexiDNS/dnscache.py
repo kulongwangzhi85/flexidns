@@ -23,7 +23,7 @@ from .tomlconfigure import configs, share_objects
 from .dnslrucache import LRUCache
 
 logger = getLogger(__name__)
-
+logger = dnsidAdapter(logger, {'dnsinfo': share_objects.contextvars_dnsinfo})
 
 class MyChainMap(ChainMap):
     """
@@ -401,10 +401,10 @@ def loader_static_domainname(static_domainname_set: dict):
     list(map(write_to_cache, write_static_list_v4))
     list(map(write_to_cache, write_static_list_v6))
 
+new_cache = None
 
 def module_init():
-    global new_cache, logger
-    logger = dnsidAdapter(logger, {'dnsinfo': share_objects.contextvars_dnsinfo})
+    global new_cache
 
     if configs.cache_persist and ospath.exists(configs.cache_file):
         from .dnspickle import deserialize
@@ -414,6 +414,7 @@ def module_init():
             logger.debug('pickle data none or failed')
     else:
         new_cache = lrucacheout()
+
     loader_static_domainname(configs.static_domainname_set)
 
 
