@@ -72,9 +72,10 @@ def start_ttlout_server():
 @async_mp
 def start_server():
     from .dnscache import module_init as cache_init
-    from .dnsrules_new import module_init as rules_init
     cache_init()
+    from .dnsrules_new import module_init as rules_init
     rules_init()
+
     from .dnsserver import start
     start()
 

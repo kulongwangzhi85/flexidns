@@ -64,7 +64,16 @@ class CircularBuffer:
         start_location: HEAD = 0
         end_location_head = 0
         end_location_end = 0
-        data_arrary = array('H', [start_location, end_location_head, end_location_end])
+        data_arrary = array('I', [start_location, end_location_head, end_location_end])
+        """
+        注意array的数据类型范围必须大于ipc_mmap_size：
+        'h': short int: -32768 ~ 32767
+        'H': unsigned short int: 0 ~ 65535
+        'i': int: -2147483648 ~ 2147483647
+        'I': unsigned int: 0 ~ 4294967295
+        'l': long int: -9223372036854775808 ~ 9223372036854775807
+        'L': unsigned long int: 0 ~ 18446744073709551615
+        """
         size:int = self.size
 
         while True:

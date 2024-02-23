@@ -87,7 +87,10 @@ async def dnsoverquic_query_tasks(dnspkg, server) -> None:
 
 
 async def write_wait(writer):
-    await writer.wait_closed()
+    try:
+        await writer.wait_closed()
+    except  ConnectionResetError:
+        logger.debug('asyncio Connection refused error')
 
 
 async def datastream_query_tasks(dnspkg, server):
@@ -101,7 +104,6 @@ async def datastream_query_tasks(dnspkg, server):
         before_data = dnspkg.edns0
     else:
         before_data = dnspkg.non_edns0
-    logger.debug('asyncio Connection, query dns over tcp')
 
     data_send = struct.pack('!H', len(before_data)) + before_data
     writer.write(data_send)
@@ -110,7 +112,7 @@ async def datastream_query_tasks(dnspkg, server):
     try:
         bytes_struct_package_length = await reader.read(2)
     except ConnectionResetError:
-        logger.error('asyncio Connection refused error')
+        logger.error(f'Connection refused error, remote server: {server[0]}') 
     else:
         struct_package_length = struct.unpack('!H', bytes_struct_package_length)[0]
         data.extend(await reader.read(struct_package_length))
@@ -176,12 +178,12 @@ class DnsClientDatagramProtocol(asyncio.DatagramProtocol):
         self.transport = None
 
     def connection_made(self, transport):
-        logger.debug(f"Sender datatime record")
+        logger.debug(f"send datatime record")
         self.transport = transport
         self.transport.sendto(self.data)
 
     def datagram_received(self, data, addr):
-        logger.debug(f"Received: data from {addr}")
+        logger.debug(f"receive data from {addr}")
         try:
             if isinstance(data, bytes) and not self.on_con_lost.done():
                 """调用future.done()方法，判断future执行任务是否已经完成，not 取反表示未完成。

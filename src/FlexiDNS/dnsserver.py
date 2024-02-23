@@ -14,6 +14,7 @@ import socket
 import struct
 
 from importlib.util import find_spec
+from importlib import reload
 from functools import partial
 from itertools import zip_longest
 from logging import getLogger
@@ -36,7 +37,7 @@ try:
 except ImportError:
     logger.error("import ssl module is not installed")
 
-if False and find_spec('uvloop'):
+if True and find_spec('uvloop'):
     import uvloop
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
@@ -98,6 +99,7 @@ class QueueHandler(DNSRecord):
         self.ar = []
         self.opts = None
         self.cookie = b''
+        self.rules = None
 
         if len(self._ar) > 0:
             for i in self._ar:
@@ -117,16 +119,50 @@ class QueueHandler(DNSRecord):
         )
         # 上下文变量不可放在实例属性上方，因为这些属性还未初始化完成
 
-        logger.debug('init dns package')
-
+        logger.debug('generate dns object')
         self.cachedata = self.new_cache.getdata(self.q.qname, self.q.qtype)
         logger.debug('get cache time')
-        self.rules = self.rulesearch.search(str(self.q.qname), repositorie='upstreams-checkpoint')
 
-        logger.debug(f'rule select from upstreams rule: {self.rules}, hit cache: {self.cachedata}')
+    def __setstate__(self, state):
+        self.new_cache = new_cache
+        self.rulesearch = rulesearch
+        self.rules = state['rules']
+        self.configs = state['configs']
+        self.upserver = state['upserver']
+        self.sock = None
+        self.client = state['client']
+        self.non_edns0 = state['non_edns0']
+        self.edns0 = state['edns0']
+        self.cachedata = None
+        self.header = state['header']
+        self.response_header = None
+        self.questions = state['questions']
+        self.rr = state['rr']
+        self.auth = state['auth']
+        self._ar = []
+        self.ar = state['ar']
+        self.opts = state['opts']
+        self.cookie = state['cookie']
+
+    def __getstate__(self):
+        return {
+            'configs': self.configs,
+            'upserver': self.upserver,
+            'rules': self.rules,
+            'client': self.client,
+            'non_edns0': self.non_edns0,
+            'edns0': self.edns0,
+            'header': self.header,
+            'questions': self.questions,
+            'rr': self.rr,
+            'auth': self.auth,
+            'ar': self.ar,
+            'opts': self.opts,
+            'cookie': self.cookie
+        }
 
     def __str__(self) -> str:
-        return f'{self.__class__.__name__}({self.rr, self.ar, self.auth})'
+        return f'{self.__class__.__name__}({self.rules, self.rr, self.ar, self.auth, self.header})'
 
     @classmethod
     def parse(cls, packet, **kwargs):
@@ -168,7 +204,7 @@ class QueueHandler(DNSRecord):
                     x.rdata += self.opts
             for x in self.OPTv4:
                 x.rdata += self.OPTCOOKIE
-            self.ar = self.OPTv4
+            self.ar.extend(self.OPTv4)
             self.edns0 = self.pack()
         elif self.q.qtype == QTYPE.AAAA:
             if self.opts:
@@ -176,7 +212,7 @@ class QueueHandler(DNSRecord):
                     x.rdata += self.opts
             for x in self.OPTv6:
                 x.rdata += self.OPTCOOKIE
-            self.ar = self.OPTv6
+            self.ar.extend(self.OPTv6)
             self.edns0 = self.pack()
         else:
             self.edns0 = self.non_edns0
@@ -242,52 +278,27 @@ class QueueHandler(DNSRecord):
     async def none_cache_method(self, *, ttl_timeout_status=False):
         ttl_timeout_send = share_objects.ttl_timeout_send
 
-        query_type = self.q.qtype
-        query_name = self.q.qname
-        configs = self.configs
-
         self.upserver = configs.dnsservers.get(self.rules, configs.default_upstream_server)
 
-        if configs.bool_fakeip and self.rules == configs.fakeip_match and (query_type == QTYPE.A or query_type == QTYPE.AAAA):
+        if configs.bool_fakeip and self.rules == configs.fakeip_match and (self.q.qtype == QTYPE.A or self.q.qtype == QTYPE.AAAA):
             # 如果查询域名为fakeip，同时查询类型为A记录或AAAA记录
             self.upserver.clear()
             self.upserver.append(configs.fakeip_upserver)
             self.rules = configs.fakeip_name_servers
             logger.debug(f'rule in fakeip modify from {self.rules} to {self.upserver}')
 
-        logger.debug(f'get upserver select: {self.upserver}, {self.rules}')
+        logger.debug(f'get upserver select: {self.upserver}, {self.rules}, client: {self.client}')
 
         self._edns0()
         self.ar.clear()
 
         if ttl_timeout_status:
-            out_data_length = struct.pack(
-                '!HH', 
-                len(self.non_edns0),
-                len(self.edns0)
-                )
 
-            out_data = out_data_length + self.non_edns0 + self.edns0
+            pickle_data = pickle.dumps(self)
+            data_amount = self.ipc_mmap.write(pickle_data)
+            logger.debug(f'mmap data location: {data_amount}, client: {self.client}')
 
-            data_amount = self.ipc_mmap.write(out_data)
-            logger.debug(f'data_amount: {data_amount}')
-            logger.debug(f'out_data: {out_data}')
-            logger.debug(f'non_eddns0: {self.non_edns0}, edns0: {self.edns0}')
-
-            ttl_timeout_send.send(
-                {
-                    'id': self.header.id,
-                    'client': self.client[0],
-                    'qname': query_name,
-                    'qtype': query_type,
-                    'configs': configs,
-                    'upserver': self.upserver,
-                    'rules': self.rules,
-                    'data_amount': data_amount,
-                    'edns0': None,
-                    'non_edns0': None,
-                }
-            )
+            ttl_timeout_send.send(data_amount)
             return
         else:
             data = await asyncio.create_task(query_create_tasklist(self))
@@ -343,9 +354,12 @@ class QueueHandler(DNSRecord):
         query_name = self.q.qname
         query_type = self.q.qtype
         query_id = self.header.id
+
+        self.rules = self.rulesearch.search(str(query_name), repositorie='upstreams-checkpoint')
+
         contextvars_dnsinfo.set(
             {
-                'address': self.client[0] if client else None,
+                'address': self.client[0] if client is not None else None,
                 'id': query_id,
                 'qname': query_name,
                 'qtype': query_type
@@ -630,22 +644,26 @@ def ttlout_update_cache(read_fd):
     data_prefix_length = struct.unpack('!H', data_prefix)[0]
     data_prefix_struct = os.read(read_fd, data_prefix_length)
     data_amount = pickle.loads(data_prefix_struct)
-    logger.debug(f'update cache data_amount: {data_amount}')
+    logger.debug(f'receive mmap data location: {data_amount}')
     data_raw = ipc_01_mmap.read(data_amount)
     try:
-        data = pickle.loads(data_raw)
-        dnspkg = QueueHandler.parse(data[0])
+        dnspkg = pickle.loads(data_raw)
     except DNSError as error:
         logger.error(
-            f"update error not a dns packet data: {data}, data_prefix: {data_prefix}")
+            f"update error not a dns packet data: {data_raw}, data_prefix: {data_prefix}")
     except OSError as error:
         logger.error("update error not a dns packet")
     else:
+        contextvars_dnsinfo.set({
+            'address': dnspkg.client,
+            'id': dnspkg.header.id,
+            'qname': dnspkg.q.qname,
+            'qtype': dnspkg.q.qtype
+        })
         logger.debug(f'ttl timeout update cache data')
-        dnspkg.rules = data[1]
-        ipset_check_result = ipset_checkpoint(dnspkg)
-        if ipset_check_result or ipset_check_result is None:
-            logger.debug(f'ipset_check_result: {ipset_check_result}')
+        # ipset_check_result = ipset_checkpoint(dnspkg)
+        # if ipset_check_result or ipset_check_result is None:
+        #     logger.debug(f'ipset_check_result: {ipset_check_result}')
         dnspkg.update_cache()
 
 
@@ -711,7 +729,15 @@ async def start_tasks():
 
 
 def start():
-    global ipc_mmap, ipc_01_mmap
+    global ipc_mmap, ipc_01_mmap, rulesearch, iprepostitory, new_cache
+
+    if rulesearch is None:
+        rulesearch = reload(rulesearch)
+    if iprepostitory is None:
+        iprepostitory = reload(iprepostitory)
+    if new_cache is None:
+        new_cache = reload(new_cache)
+
     ipc_mmap = CircularBuffer(ipc_mmap=share_objects.ipc_mmap, ipc_mmap_size=share_objects.ipc_mmap_size)
     ipc_01_mmap = CircularBuffer(ipc_mmap=share_objects.ipc_01_mmap, ipc_mmap_size=share_objects.ipc_mmap_size)
     logger.debug(f'upstream dnsserver is {configs.dnsservers}')

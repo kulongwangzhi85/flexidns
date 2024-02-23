@@ -88,13 +88,13 @@ def loggerconfigurer():
     root = getLogger()
     root.setLevel(loglevels.get(loglevel))
 
-    # pylog_fmt = Formatter(
-    #     fmt='%(asctime)s.%(msecs)03d [ %(levelname)s %(module)s L%(lineno)d <%(ip)s> id: %(dnsid)s qname: %(qname)s qtype: %(qtype)s ] - %(message)s',
-    #     datefmt='%Y/%m/%d %H:%M:%S',
-    #     style='%',
-    #     defaults={'ip': None, 'dnsid': None, 'qname': None, 'qtype': None},
-    #     validate=True)
-    pylog_fmt = LogTooLongFilter()
+    pylog_fmt = Formatter(
+        fmt='%(asctime)s.%(msecs)03d [ %(levelname)s %(module)s L%(lineno)d <%(ip)s> id: %(dnsid)s qname: %(qname)s qtype: %(qtype)s ] - %(message)s',
+        datefmt='%Y/%m/%d %H:%M:%S',
+        style='%',
+        defaults={'ip': None, 'dnsid': None, 'qname': None, 'qtype': None},
+        validate=True)
+    # pylog_fmt = LogTooLongFilter()
 
     rotat_handler = RotatingFileHandler(
         logfile,
