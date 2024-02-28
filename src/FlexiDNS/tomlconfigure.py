@@ -36,18 +36,6 @@ class Share_Objects_Structure:
             'dnsinfo', default=None)
 
     def init(self):
-        """
-        ECS Select;
-        OPTION_CODE:
-            10 -> COOKIE
-            8 -> CLIENT-SUBNET
-            12 -> PADDING
-        """
-
-        OPT_NAME = None
-        OPT_TYPE = 41
-        OPT_UDP_LEN = 1232  # 1232建议值，http://www.dnsflagday.net/2020/index-zh-CN.html
-        OPT_VERSION = 0
 
         if configs.edns0_ipv4_address is not None:
             ipv4_address = configs.edns0_ipv4_address
@@ -63,18 +51,6 @@ class Share_Objects_Structure:
                 EDNSOption(8, edns_client_subnet_option)
             ]
 
-            self.OPTv4 = [
-                EDNS0(
-                    rname=OPT_NAME,
-                    rtype=OPT_TYPE,
-                    udp_len=OPT_UDP_LEN,
-                    version=OPT_VERSION,
-                    opts=self.optsv4
-                )
-            ]
-        else:
-            self.OPTv4 = []
-
         if configs.edns0_ipv6_address is not None:
             ipv6_address = configs.edns0_ipv6_address
             source_netmask = 60
@@ -88,18 +64,6 @@ class Share_Objects_Structure:
             self.optsv6 = [
                 EDNSOption(8, edns_client_subnet_option)
             ]
-
-            self.OPTv6 = [
-                EDNS0(
-                    rname=OPT_NAME,
-                    rtype=OPT_TYPE,
-                    udp_len=OPT_UDP_LEN,
-                    version=OPT_VERSION,
-                    opts=self.optsv6
-                )
-            ]
-        else:
-            self.OPTv6 = []
 
         self.ipc_mmap_size: int = 4194304
         self.ipc_mmap = mmap.mmap(-1, self.ipc_mmap_size, flags=mmap.MAP_SHARED)
@@ -137,6 +101,10 @@ class Configures_Structure:
         self.logfile_backupcount = inittomlconfig.logcounts
         self.nameserver = inittomlconfig.nameserver
         self.dnsservers = inittomlconfig.dnsservers
+        """
+        dnsservers:
+            {'default': [('223.5.5.5', 53, 'udp', 'edns0'), (...), (...)], 'cn': [...], 'proxy': [...]}
+        """
         self.rulesjson = inittomlconfig.rulesjson
         self.bool_fakeip = inittomlconfig.bool_fakeip
         self.fakeiplist = inittomlconfig.fakeiplist
@@ -209,6 +177,35 @@ class Configures_Structure:
         self.basedir = inittomlconfig.basedir
         self.network_log_server = inittomlconfig.network_log_server 
 
+        self.rulesjson.update({Configures_Structure.default_rule: self.default_upstream_rule})
+        """
+        rulesjson:
+            {
+                'ad': {
+                    'list': ['/path/anti-ad-domains.txt'],
+                    'domainname': []
+                },
+                'direct': {
+                    'list': ['...', ],
+                    'domainname': [
+                        'ipv4.icanhazip.com', '...'
+                    ]
+                },
+                'cn': {
+                    'list': ['...', ],
+                    'domainname': []
+                },
+                'cloudflare': {
+                    'list': [],
+                    'domainname': []
+                },
+                'proxy': {
+                    'list': ['...', ],
+                    'domainname': []
+                },
+                'bdab97ef9ac7a87f5fb77789': 'default'
+            }
+        """
 
 class TomlConfigures:
     CACHE_FILE =  f'/var/log/{__package__.lower()}.cache'

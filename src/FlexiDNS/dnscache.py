@@ -273,12 +273,12 @@ class lrucacheout:
 
         if _ttl_obj := self.cache_ttl.get(QTYPE.get(qtype)):
             _tmp_ttl = _ttl_obj.get(qname)
-            logger.debug(f'get cache ttl in _tmp_ttl: {_tmp_ttl}')
+            logger.debug(f'get cache ttl in timestamps: {_tmp_ttl}')
             if _tmp_ttl is None or _tmp_ttl <= 0:
                 return self.configs.expired_reply_ttl
             else:
                 _tmptime = _tmp_ttl - int(time())
-                logger.debug(f'get cache ttl in _tmptime: {_tmptime}')
+                logger.debug(f'get cache ttl: {_tmptime}')
                 if _tmptime >= self.configs.expired_reply_ttl:
                     return _tmptime
                 else:
