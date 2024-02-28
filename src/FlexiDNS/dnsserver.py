@@ -19,7 +19,7 @@ from functools import partial
 from itertools import zip_longest
 from logging import getLogger
 
-from dnslib import RCODE, EDNSOption, QTYPE, DNSRecord, QR, SOA, RR, CNAME, DNSError, DNSBuffer, DNSQuestion, DNSHeader, BimapError
+from dnslib import RCODE, EDNSOption, QTYPE, DNSRecord, QR, SOA, RR, CNAME, DNSError, DNSBuffer, DNSQuestion, DNSHeader, BimapError, EDNS0
 
 from .tomlconfigure import configs, share_objects
 from .dnscache import new_cache
@@ -54,22 +54,40 @@ class QueueHandler(DNSRecord):
     client_address = None
 
     __slots__ = (
-        'header', 'questions', 'rr', 'auth', 'ar', '_ar', 'edns0', 'non_edns0', 'response_header',
+        'header', 'questions', 'rr', 'auth', 'ar', 'response_header', 'rcode',
         'configs', 'sockfd', 'question_packet', 'sock', 'client', 'upserver', 'rules',
-        'cookie', 'opts', 'OPTv4', 'OPTv6', 'OPTCOOKIE', 'rulesearch', 'new_cache', 'cachedata'
+        'OPTv4', 'OPTv6', 'OPTCOOKIE', 'rulesearch', 'new_cache', 'cachedata', 'cookie'
     )
 
     def __getattr__(self, name):
         # 延迟初始化实例属性
         match name:
             case 'OPTv4':
-                setattr(self, 'OPTv4', copy.deepcopy(share_objects.OPTv4))
+                setattr(self, 'OPTv4', copy.deepcopy(share_objects.optsv4))
                 return getattr(self, name)
             case 'OPTv6':
-                setattr(self, 'OPTv6', copy.deepcopy(share_objects.OPTv6))
+                setattr(self, 'OPTv6', copy.deepcopy(share_objects.optsv6))
                 return getattr(self, name)
             case 'OPTCOOKIE':
-                setattr(self, 'OPTCOOKIE', [EDNSOption(10, os.urandom(8))])
+                """
+                ECS Select;
+                    OPTION_CODE:
+                        10 -> COOKIE
+                        8 -> CLIENT-SUBNET
+                        12 -> PADDING
+
+                    OPT_NAME = None
+                    OPT_TYPE = 41
+                    OPT_UDP_LEN = 1232  建议值，http://www.dnsflagday.net/2020/index-zh-CN.html
+                    OPT_VERSION = 0
+                """
+                self.cookie = os.urandom(8)
+                setattr(self, 'OPTCOOKIE', EDNS0(
+                    udp_len=1232,
+                    version=0,
+                    opts=[EDNSOption(10, self.cookie)]
+                    )
+                )
                 return getattr(self, name)
             case 'ipset_rule':
                 # 当请求域名无缓存时，也就是第一次请求解析时，在none_cache_method方法中调用该属性
@@ -86,8 +104,7 @@ class QueueHandler(DNSRecord):
         self.upserver = None
         self.sock = None
         self.client = QueueHandler.client_address or None
-        self.non_edns0 = None
-        self.edns0 = None
+        self.edns0 = []
         self.cachedata = None
 
         self.header = header
@@ -95,19 +112,9 @@ class QueueHandler(DNSRecord):
         self.questions = questions
         self.rr = rr or []
         self.auth = auth or []
-        self._ar = ar or []
-        self.ar = []
-        self.opts = None
-        self.cookie = b''
+        self.ar = ar or []
         self.rules = None
 
-        if len(self._ar) > 0:
-            for i in self._ar:
-                if i.rdata is not None:
-                    for opts in i.rdata:
-                        if opts.code == 10:
-                            self.opts = i.rdata
-                            self.cookie = opts.data
 
         contextvars_dnsinfo.set(
             {
@@ -131,17 +138,13 @@ class QueueHandler(DNSRecord):
         self.upserver = state['upserver']
         self.sock = None
         self.client = state['client']
-        self.non_edns0 = state['non_edns0']
-        self.edns0 = state['edns0']
         self.cachedata = None
         self.header = state['header']
         self.response_header = None
         self.questions = state['questions']
         self.rr = state['rr']
         self.auth = state['auth']
-        self._ar = []
         self.ar = state['ar']
-        self.opts = state['opts']
         self.cookie = state['cookie']
 
     def __getstate__(self):
@@ -150,14 +153,11 @@ class QueueHandler(DNSRecord):
             'upserver': self.upserver,
             'rules': self.rules,
             'client': self.client,
-            'non_edns0': self.non_edns0,
-            'edns0': self.edns0,
             'header': self.header,
             'questions': self.questions,
             'rr': self.rr,
             'auth': self.auth,
             'ar': self.ar,
-            'opts': self.opts,
             'cookie': self.cookie
         }
 
@@ -188,34 +188,39 @@ class QueueHandler(DNSRecord):
             for _ in range(header.auth):
                 self.auth.append(RR.parse(buffer))
             for _ in range(header.ar):
-                _ar = RR.parse(buffer)
-                self._ar.append(_ar)
+                self.ar.append(RR.parse(buffer))
         except DNSError:
             raise
         except (BufferError, BimapError) as e:
             raise DNSError("Error unpacking DNSRecord [offset=%d]: %s" % (buffer.offset, e))
 
-    def _edns0(self):
-        self.non_edns0 = self.pack()
+    def check_edns_cookie(self):
+        pass
 
+    def edns_cookie(self):
+        """添加cookie
+        判断客户端是否自带cookie，如果没有，则添加
+        """
+        code10_state = True
+        for ar in self.ar:
+            for opts in ar.rdata:
+                if opts.code == 10:
+                    code10_state = False
+        if code10_state:
+            self.add_ar(self.OPTCOOKIE)
+
+    def _edns0(self):
+        self.edns_cookie()
         if self.q.qtype == QTYPE.A:
-            if self.opts:
-                for x in self.OPTv4:
-                    x.rdata += self.opts
-            for x in self.OPTv4:
-                x.rdata += self.OPTCOOKIE
-            self.ar.extend(self.OPTv4)
-            self.edns0 = self.pack()
+            for ar in self.ar:
+                ar.rdata.extend(self.OPTv4)
         elif self.q.qtype == QTYPE.AAAA:
-            if self.opts:
-                for x in self.OPTv6:
-                    x.rdata += self.opts
-            for x in self.OPTv6:
-                x.rdata += self.OPTCOOKIE
-            self.ar.extend(self.OPTv6)
-            self.edns0 = self.pack()
-        else:
-            self.edns0 = self.non_edns0
+            for ar in self.ar:
+                ar.rdata.extend(self.OPTv6)
+        logger.debug(f'edns0: {self.ar}')
+        bytes_dnspkg = self.pack()
+        self.ar.clear()
+        return bytes_dnspkg
 
     def update_cache(self):
         """
@@ -244,53 +249,51 @@ class QueueHandler(DNSRecord):
             min_ttl = self.configs.ttl_min
             max_ttl = self.configs.ttl_max
 
-            if len(self.rr) > 0 or len(self.auth) > 0:
-                for rr, auth in zip_longest(self.rr, self.auth, fillvalue=None):
+            for rr, auth in zip_longest(self.rr, self.auth, fillvalue=None):
 
-                    if rr:
-                        logger.debug(f'original rr ttl: {rr.ttl}')
-                        if rr.ttl <= min_ttl:
-                            rrttl = min_ttl
-                            rr.ttl = rrttl
-                        elif rr.ttl >= max_ttl:
-                            rrttl = max_ttl
-                            rr.ttl = rrttl
-                        else:
-                            rrttl = rr.ttl
+                if rr:
+                    logger.debug(f'original rr ttl: {rr.ttl}')
+                    if rr.ttl <= min_ttl:
+                        rrttl = min_ttl
+                        rr.ttl = rrttl
+                    elif rr.ttl >= max_ttl:
+                        rrttl = max_ttl
+                        rr.ttl = rrttl
+                    else:
+                        rrttl = rr.ttl
 
-                    if auth:
-                        logger.debug(f'original auth ttl: {auth.ttl}')
-                        if auth.ttl <= min_ttl:
-                            rrttl = min_ttl
-                            auth.ttl = rrttl
-                        elif auth.ttl >= max_ttl:
-                            rrttl = max_ttl
-                            auth.ttl = rrttl
-                        else:
-                            rrttl = auth.ttl
+                if auth:
+                    logger.debug(f'original auth ttl: {auth.ttl}')
+                    if auth.ttl <= min_ttl:
+                        rrttl = min_ttl
+                        auth.ttl = rrttl
+                    elif auth.ttl >= max_ttl:
+                        rrttl = max_ttl
+                        auth.ttl = rrttl
+                    else:
+                        rrttl = auth.ttl
 
-                self.new_cache.setttl(self.q.qname, self.q.qtype, rrttl)
-                self.new_cache.setdata(self)
-            else:
+            self.new_cache.setttl(self.q.qname, self.q.qtype, rrttl)
+            self.new_cache.setdata(self)
+
+            if len(self.rr) == 0 and len(self.auth) == 0:
+                self.new_cache.deldata(self.q.qname, self.q.qtype)
                 # 上游服务器响应内容为空时，将rcode设置为nxdomain
                 self.header.set_rcode(RCODE.NXDOMAIN)
 
     async def none_cache_method(self, *, ttl_timeout_status=False):
         ttl_timeout_send = share_objects.ttl_timeout_send
 
-        self.upserver = configs.dnsservers.get(self.rules, configs.default_upstream_server)
+        self.upserver = self.configs.dnsservers.get(self.rules, self.configs.default_upstream_server)
 
-        if configs.bool_fakeip and self.rules == configs.fakeip_match and (self.q.qtype == QTYPE.A or self.q.qtype == QTYPE.AAAA):
+        if self.configs.bool_fakeip and self.rules == self.configs.fakeip_match and (self.q.qtype == QTYPE.A or self.q.qtype == QTYPE.AAAA):
             # 如果查询域名为fakeip，同时查询类型为A记录或AAAA记录
             self.upserver.clear()
-            self.upserver.append(configs.fakeip_upserver)
-            self.rules = configs.fakeip_name_servers
+            self.upserver.append(self.configs.fakeip_upserver)
+            self.rules = self.configs.fakeip_name_servers
             logger.debug(f'rule in fakeip modify from {self.rules} to {self.upserver}')
 
         logger.debug(f'get upserver select: {self.upserver}, {self.rules}, client: {self.client}')
-
-        self._edns0()
-        self.ar.clear()
 
         if ttl_timeout_status:
 
@@ -351,11 +354,13 @@ class QueueHandler(DNSRecord):
         self.sock = sock
         configs = self.configs
         expired_reply_ttl = configs.expired_reply_ttl
+        header = self.header
         query_name = self.q.qname
         query_type = self.q.qtype
-        query_id = self.header.id
+        query_id = header.id
 
         self.rules = self.rulesearch.search(str(query_name), repositorie='upstreams-checkpoint')
+        logger.debug(f'rules: {self.rules}')
 
         contextvars_dnsinfo.set(
             {
@@ -368,7 +373,12 @@ class QueueHandler(DNSRecord):
 
         if self.cachedata:
             """self.cachedata:
-            [[<DNS RR: 'gw.example.org.' rtype=A rclass=IN ttl=0 rdata='192.168.8.1'>]]
+            [
+                [<DNS RR: 'gw.example.org.' rtype=A rclass=IN ttl=0 rdata='192.168.8.1'>],
+                [<DNS AUTH: ... ...>],
+                [<DNS AR: ... ...>],
+                <DNS RCODE>
+            ]
             or
             None
             """
@@ -378,9 +388,13 @@ class QueueHandler(DNSRecord):
 
             if cachettl is not None:
                 if self.rules in configs.blacklist and cachettl <= 1:
-                    cachettl = self.configs.ttl_max
-                    self.new_cache.setttl(self.q.qname, self.q.qtype, self.configs.ttl_max)
+                    """qname is in blacklist, use ttl_max"""
+
+                    cachettl = configs.ttl_max
+                    self.new_cache.setttl(query_name, query_type, configs.ttl_max)
                 elif cachettl <= expired_reply_ttl:
+                    """cache ttl expired, use expired reply ttl"""
+
                     logger.debug(f'ttl timeout, use expired reply ttl {expired_reply_ttl}')
                     cachettl = expired_reply_ttl
                     await asyncio.create_task(self.none_cache_method(ttl_timeout_status=True))
@@ -402,57 +416,58 @@ class QueueHandler(DNSRecord):
                             auth.ttl = cachettl
                     case "rcode":
                         if value is None:
-                            self.header.set_rcode(RCODE.NOERROR)
+                            header.set_rcode(RCODE.NOERROR)
                         else:
-                            self.header.set_rcode(value)
+                            header.set_rcode(value)
 
-            if len(self.rr) == 0 and len(self.auth) == 0:
-                # 上游服务器响应内容为空时，将rcode设置为nxdomain
-                self.header.set_rcode(RCODE.NXDOMAIN)
-                self.new_cache.deldata(query_name, query_type)
+            header.set_qr(QR.RESPONSE)
+            header.set_ra(1)
+            header.set_aa(1)
+            header.set_tc(0)
 
-            self.header.set_qr(QR.RESPONSE)
-            self.header.set_ra(1)
-            self.header.set_aa(1)
-            self.header.set_tc(0)
-
-            await asyncio.create_task(response_dns_package(self))
+            asyncio.create_task(response_dns_package(self))
             return
 
         elif query_type in configs.soa_list:
             logger.debug(f'query name in soa list')
             # 请求类型qtype在SOA列表的执行方法
             self.none_method()
-            await asyncio.create_task(response_dns_package(self))
+            asyncio.create_task(response_dns_package(self))
             return
 
         elif self.rules in configs.blacklist:
             # 请求域名在黑名单列表的执行方法
             self.soa_method()
-            await asyncio.create_task(response_dns_package(self))
+            asyncio.create_task(response_dns_package(self))
             return
 
         elif self.rules == configs.static_rule:
             # 这个用于阻止相应的static_cache表的静态域名列表，当请求A记录时，会同时请求AAAA记录
             # 以及处理hosts类似静态记录的处理
 
-            logger.debug(f'hostname: {self.configs.static_rule}')
-            self.header.set_qr(QR.RESPONSE)
-            self.header.set_ra(1)
-            self.header.set_aa(1)
-            self.header.set_tc(0)
+            logger.debug(f'hostname: {configs.static_rule}')
+            header.set_qr(QR.RESPONSE)
+            header.set_ra(1)
+            header.set_aa(1)
+            header.set_tc(0)
 
-            await asyncio.create_task(response_dns_package(self))
+            asyncio.create_task(response_dns_package(self))
             return
 
         else:
             await asyncio.create_task(self.none_cache_method())
-            self.header.set_qr(QR.RESPONSE)
-            self.header.set_ra(1)
-            self.header.set_aa(1)
-            self.header.set_tc(0)
 
-            await asyncio.create_task(response_dns_package(self))
+            if len(self.rr) == 0 and len(self.auth) == 0:
+            # 上游服务器响应内容为空时，将rcode设置为nxdomain
+                header.set_rcode(RCODE.NXDOMAIN)
+                self.new_cache.deldata(query_name, query_type)
+
+            header.set_qr(QR.RESPONSE)
+            header.set_ra(1)
+            header.set_aa(1)
+            header.set_tc(0)
+
+            asyncio.create_task(response_dns_package(self))
             return
 
 

@@ -444,6 +444,10 @@ class RULESearch(RULERepository):
         for k, v in data.items():
             if k == 'self.rulestabs':
                 for rulescache_key, rulescache_value in v.items():
+                    if rulescache_value not in configs.rulesjson:
+                        # 检查缓存中rule值与配置文件中的rule名是否存在
+                        # 不存在则使用默认规则
+                        rulescache_value = configs.default_upstream_rule
                     self.rulesfull.add_many({rulescache_key: rulescache_value})
             elif k == 'ruleswildcard':
                 # 重启后default-rule会被重置，需要更新当前新的default-rule
@@ -501,7 +505,7 @@ class RULESearch(RULERepository):
                     if searchresult:
                         self.searchcache.add_many({domainname: searchresult})
                     else:
-                        self.searchcache.add_many({domainname: self.configs.default_rule})
+                        self.searchcache.add_many({domainname: self.configs.default_upstream_rule})
                     return searchresult
             case 'ip-sets-checkpoint':
                 if searchresult := self.back_search(domainname, self.repositories[repositorie]):
@@ -549,7 +553,6 @@ class RULESearch(RULERepository):
         """
         dn = domainname.rstrip('.').strip().lower().split('.')
         dn.reverse()
-        logger.debug(f'revers after domainname: {dn}')
 
         tmp_list = []
 
@@ -560,23 +563,18 @@ class RULESearch(RULERepository):
                     yvalue = startkey.get(y, None)
                     if yvalue:
                         tmp_list.append(yvalue.get(self.default_rule, None))
-                        logger.debug(f'startkey result: {tmp_list}')
                         return yvalue
                     else:
                         tmp_list.append(yvalue)
                     return startkey
                 else:
                     tmp_list.append(startkey)
-                    logger.debug(f'startkey result: {tmp_list}')
             elif isinstance(x, dict):
-                logger.debug(y)
                 nextkey = x.get(y, None)
                 if nextkey:
                     tmp_list.append(nextkey.get(self.default_rule, None))
-                    logger.debug(f'nextkey result: {tmp_list}')
                 else:
                     tmp_list.append(nextkey)
-                    logger.debug(f'nextkey result: {tmp_list}')
                 return nextkey
             else:
                 tmp_list.append(x)
@@ -926,6 +924,7 @@ rulesearch = None
 iprepostitory = None
 
 def module_init():
+    logger.debug(f'default rule mapping to string: {configs.default_rule}')
     global rulesearch, iprepostitory
 
     if configs.cache_persist and ospath.exists(configs.cache_file):

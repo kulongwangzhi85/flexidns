@@ -161,13 +161,16 @@ sudo flexidns stop
 
 ### 环境
 
-- 笔记本
-- 软件dnsperf: Version 2.11.2
-- cpu: Intel(R) Core(TM) i5-1240P
-- 进程作用：1进程dns客户端与日志线程，2进程dns服务器端
+- 笔记本：LENOVO - ThinkPad T14 Gen 3
+- cpu：Intel(R) Core(TM) i5-1240P
+- 操作系统：Arch Linux，rolling
+- 内核：6.7.6-arch1-1
+- 软件dnsperf：Version 2.11.2
 - dnsperf与dns服务器在同一台笔记本
 
 > **服务器模式为单进程asyncio**
+> **进程作用：1进程dns客户端与日志线程，2进程dns服务器端**
+
 
 1. 日志级别DEBUG
 

@@ -66,9 +66,9 @@ async def dnsoverquic_query_tasks(dnspkg, server) -> None:
     configuration.verify_mode = ssl.CERT_NONE
 
     if server[3] is not None and 'edns0' in server[3]:
-        before_dnspkg = dnspkg.edns0
+        before_dnspkg = dnspkg._edns0()
     else:
-        before_dnspkg = dnspkg.non_edns0
+        before_dnspkg = dnspkg.pack()
 
     logger.debug(f"connecting to {server[0]}:{server[1]}")
     async with connect(
@@ -101,9 +101,9 @@ async def datastream_query_tasks(dnspkg, server):
     reader, writer = await asyncio.open_connection(host=server[0], port=server[1])
 
     if server[3] is not None and 'edns0' in server[3]:
-        before_data = dnspkg.edns0
+        before_data = dnspkg._edns0()
     else:
-        before_data = dnspkg.non_edns0
+        before_data = dnspkg.pack()
 
     data_send = struct.pack('!H', len(before_data)) + before_data
     writer.write(data_send)
@@ -136,9 +136,9 @@ async def dnsovertls_query_tasks(dnspkg, server, future):
     tlscontext.maximum_version = ssl.TLSVersion.TLSv1_3
 
     if server[3] is not None and 'edns0' in server[3]:
-        before_data = dnspkg.edns0
+        before_data = dnspkg._edns0()
     else:
-        before_data = dnspkg.non_edns0
+        before_data = dnspkg.pack()
 
     logger.debug('asyncio Connection, query dns over tls')
 
@@ -237,7 +237,7 @@ async def datagram_query_tasks(dnspkg, server):
     on_con_lost = loop.create_future()
 
     transport, _ = await loop.create_datagram_endpoint(
-        lambda: DnsClientDatagramProtocol(dnspkg.edns0, on_con_lost) if server[3] is not None and 'edns0' in server[3] else DnsClientDatagramProtocol(dnspkg.non_edns0, on_con_lost), remote_addr=(server[0], server[1]))
+        lambda: DnsClientDatagramProtocol(dnspkg._edns0(), on_con_lost) if server[3] is not None and 'edns0' in server[3] else DnsClientDatagramProtocol(dnspkg.pack(), on_con_lost), remote_addr=(server[0], server[1]))
     try:
         result = await on_con_lost
     except Exception as error:
@@ -250,6 +250,7 @@ async def datagram_query_tasks(dnspkg, server):
 
 async def query_create_tasklist(dnspkg, *args):
     """创建向上游DNS查询的任务列表
+    NOTE: 只要有一个返回结构，任务列表立即停止。所以有时会看不到例如tcp，tls等比较慢的协议发起日志
     """
     loop = asyncio.get_running_loop()
     future = loop.create_future()
@@ -260,7 +261,6 @@ async def query_create_tasklist(dnspkg, *args):
     if upserver is None or len(upserver) == 0:
         logger.error(f'sender upservers: {upserver}')
         upserver = dnspkg.configs.default_upstream
-
     for i in upserver:
         match i[2]:
             case "udp":
