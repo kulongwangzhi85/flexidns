@@ -188,9 +188,9 @@ class lrucacheout:
         if (_save_obj := self.search_cache.get(QTYPE.get(dnspkg.q.qtype))) is not None:
             _tmp_data = _save_obj.get(dnspkg.q.qname)
             if _tmp_data is None:
-                _save_obj.add_many({dnspkg.q.qname: {'rr': dnspkg.rr, 'auth': dnspkg.auth,'ar': dnspkg.ar, 'rcode': dnspkg.response_header.get_rcode()}})
+                _save_obj.add_many({dnspkg.q.qname: {'rr': dnspkg.rr, 'auth': dnspkg.auth, 'rcode': dnspkg.response_header.get_rcode()}})
             else:
-                _save_obj.set_many({dnspkg.q.qname: {'rr': dnspkg.rr, 'auth': dnspkg.auth,'ar': dnspkg.ar, 'rcode': dnspkg.response_header .get_rcode()}})
+                _save_obj.set_many({dnspkg.q.qname: {'rr': dnspkg.rr, 'auth': dnspkg.auth, 'rcode': dnspkg.response_header .get_rcode()}})
         return
 
     def deldata(self, qname, qtype):

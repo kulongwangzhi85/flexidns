@@ -10,6 +10,7 @@ import os
 import signal
 import sys
 import stat
+from logging import ERROR
 from threading import local, Thread
 
 from .tomlconfigure import configs
@@ -113,8 +114,12 @@ def main(configfile):
         os.dup2(f.fileno(), sys.stdin.fileno())
     with open(configs.logfile, 'a+') as f:
         os.dup2(f.fileno(), sys.stdout.fileno())
-    with open(configs.logerror, 'a+') as f:
-        os.dup2(f.fileno(), sys.stderr.fileno())
+    if configs.loglevels.get(configs.loglevel) < ERROR:
+        with open(configs.logerror, 'a+') as f:
+            os.dup2(f.fileno(), sys.stderr.fileno())
+    else:
+        with open(configs.logfile, 'a+') as f:
+            os.dup2(f.fileno(), sys.stderr.fileno())
 
     local_school.start_server = start_server()
     local_school.start_ttlout_server = start_ttlout_server()
