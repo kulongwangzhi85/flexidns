@@ -7,7 +7,7 @@ dns服务器的日志初始化模块，采用QueueListener的方式接收日志�
 """
 
 from logging.handlers import QueueHandler, RotatingFileHandler, QueueListener, SysLogHandler
-from logging import DEBUG, INFO, WARNING, ERROR, CRITICAL, Formatter, getLogger, Filter, LoggerAdapter
+from logging import ERROR, Formatter, getLogger, Filter, LoggerAdapter
 from multiprocessing import Queue
 logqueue = Queue()
 
@@ -82,9 +82,9 @@ def loggerconfigurer():
     loglevel = configs.loglevel
     logfile = configs.logfile
     logerror = configs.logerror
+    loglevels = configs.loglevels
     network_log_server = configs.network_log_server
-    loglevels = {'debug': DEBUG, 'info': INFO, 'error': ERROR,
-                 'warning': WARNING, 'critical': CRITICAL}
+
     root = getLogger()
     root.setLevel(loglevels.get(loglevel))
 
@@ -108,19 +108,25 @@ def loggerconfigurer():
     # rotat_handler.addFilter(MyLevelFilterNoneError())
     rotat_handler.setFormatter(pylog_fmt)
 
-    rotat_handler_error = RotatingFileHandler(
-        logerror,
-        maxBytes=configs.logfile_size,
-        mode='a',
-        delay=False,
-        backupCount=configs.logfile_backupcount,
-        encoding='utf-8'
-    )
-    rotat_handler_error.setLevel(ERROR)
-    rotat_handler_error.addFilter(MyLevelFilterError())
-    rotat_handler_error.setFormatter(pylog_fmt)
+    if loglevels.get(loglevel) < ERROR:
+        """
+        配置文件中设置日志level为ERROR时，不会注册ERROR日志到单独日志文件
+        """
+        rotat_handler_error = RotatingFileHandler(
+            logerror,
+            maxBytes=configs.logfile_size,
+            mode='a',
+            delay=False,
+            backupCount=configs.logfile_backupcount,
+            encoding='utf-8'
+        )
+        rotat_handler_error.setLevel(ERROR)
+        rotat_handler_error.addFilter(MyLevelFilterError())
+        rotat_handler_error.setFormatter(pylog_fmt)
 
-    logger_handlers = [rotat_handler, rotat_handler_error]
+        logger_handlers = [rotat_handler, rotat_handler_error]
+    else:
+        logger_handlers = [rotat_handler]
 
     if network_log_server:
         datagram_handler = SysLogHandler(network_log_server)

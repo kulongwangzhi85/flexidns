@@ -14,10 +14,11 @@ import struct
 import mmap
 from dataclasses import dataclass, field
 from os import _exit, urandom, pipe, path
-from multiprocessing import Pipe, Event
+from multiprocessing import Pipe
+from logging import DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 from IPy import IP
-from dnslib import EDNS0, EDNSOption, QTYPE
+from dnslib import EDNSOption, QTYPE
 
 
 @dataclass(order=False)
@@ -53,7 +54,7 @@ class Share_Objects_Structure:
 
         if configs.edns0_ipv6_address is not None:
             ipv6_address = configs.edns0_ipv6_address
-            source_netmask = 60
+            source_netmask = 64
             scope_netmask = 0
             family = 2
             source_address = socket.inet_pton(socket.AF_INET6, ipv6_address)
@@ -92,6 +93,7 @@ class Configures_Structure:
     server: list = field(default_factory=lambda: [])
     soa_list: set = field(default_factory=lambda: {
         QTYPE.__getattr__('ptr'.upper()), })
+    loglevels: dict = field(default_factory=lambda: {'debug': DEBUG, 'info': INFO, 'error': ERROR,'warning': WARNING, 'critical': CRITICAL})
 
     def init(self, inittomlconfig):
         self.logfile = inittomlconfig.logfile

@@ -50,11 +50,11 @@ async def write_wait(writer):
 
 
 class QueueHandler(DNSRecord):
-    
+
     client_address = None
 
     __slots__ = (
-        'header', 'questions', 'rr', 'auth', 'ar', 'response_header', 'rcode',
+        'header', 'questions', 'rr', 'auth', 'ar', 'response_header', 'rcode', '_ar', 'code_state',
         'configs', 'sockfd', 'question_packet', 'sock', 'client', 'upserver', 'rules',
         'OPTv4', 'OPTv6', 'OPTCOOKIE', 'rulesearch', 'new_cache', 'cachedata', 'cookie'
     )
@@ -81,11 +81,11 @@ class QueueHandler(DNSRecord):
                     OPT_UDP_LEN = 1232  建议值，http://www.dnsflagday.net/2020/index-zh-CN.html
                     OPT_VERSION = 0
                 """
-                self.cookie = os.urandom(8)
+                cookie = os.urandom(8) if self.cookie is None else self.cookie
                 setattr(self, 'OPTCOOKIE', EDNS0(
                     udp_len=1232,
                     version=0,
-                    opts=[EDNSOption(10, self.cookie)]
+                    opts=[EDNSOption(10, cookie)]
                     )
                 )
                 return getattr(self, name)
@@ -112,8 +112,11 @@ class QueueHandler(DNSRecord):
         self.questions = questions
         self.rr = rr or []
         self.auth = auth or []
-        self.ar = ar or []
+        self._ar = ar or []
+        self.ar = []
         self.rules = None
+        self.code_state = [ True, True ] # [ code8, code10 ]
+        self.cookie = None
 
 
         contextvars_dnsinfo.set(
@@ -128,7 +131,7 @@ class QueueHandler(DNSRecord):
 
         logger.debug('generate dns object')
         self.cachedata = self.new_cache.getdata(self.q.qname, self.q.qtype)
-        logger.debug('get cache time')
+        logger.debug(f'get cache time ar {self._ar}')
 
     def __setstate__(self, state):
         self.new_cache = new_cache
@@ -145,6 +148,8 @@ class QueueHandler(DNSRecord):
         self.rr = state['rr']
         self.auth = state['auth']
         self.ar = state['ar']
+        self._ar = state['_ar']
+        self.code_state = state['code_state']
         self.cookie = state['cookie']
 
     def __getstate__(self):
@@ -158,6 +163,8 @@ class QueueHandler(DNSRecord):
             'rr': self.rr,
             'auth': self.auth,
             'ar': self.ar,
+            '_ar': self._ar,
+            'code_state': self.code_state,
             'cookie': self.cookie
         }
 
@@ -189,6 +196,7 @@ class QueueHandler(DNSRecord):
                 self.auth.append(RR.parse(buffer))
             for _ in range(header.ar):
                 self.ar.append(RR.parse(buffer))
+            logger.debug(f'response ar: {self.ar}')
         except DNSError:
             raise
         except (BufferError, BimapError) as e:
@@ -197,26 +205,38 @@ class QueueHandler(DNSRecord):
     def check_edns_cookie(self):
         pass
 
-    def edns_cookie(self):
-        """添加cookie
-        判断客户端是否自带cookie，如果没有，则添加
+    def _edns0(self):
         """
-        code10_state = True
+        数据字段：Additional（附加资源记录）
+        作用：判断客户端是否自带cookie，如果没有，则添加
+        [
+            <DNS OPT: edns_ver=0 do=0 ext_rcode=0 udp_len=1232>
+                <EDNS Option: Code=10 Data='f592d4eadcce3b23'>
+                <EDNS Option: Code=8 Data='0001201164fad64c'>
+        ]
+        """
+        self.ar = copy.deepcopy(self._ar)
+
         for ar in self.ar:
             for opts in ar.rdata:
                 if opts.code == 10:
-                    code10_state = False
-        if code10_state:
+                    self.code_state[1] = False
+                elif opts.code == 8:
+                    self.code_state[0] = False
+
+        if self.code_state[1]:
             self.add_ar(self.OPTCOOKIE)
 
-    def _edns0(self):
-        self.edns_cookie()
-        if self.q.qtype == QTYPE.A:
-            for ar in self.ar:
-                ar.rdata.extend(self.OPTv4)
-        elif self.q.qtype == QTYPE.AAAA:
-            for ar in self.ar:
-                ar.rdata.extend(self.OPTv6)
+        if self.code_state[0]:
+            if self.q.qtype == QTYPE.A:
+                for ar in self.ar:
+                    ar.rdata.extend(self.OPTv4)
+                    self.code_state[0] = False
+            elif self.q.qtype == QTYPE.AAAA:
+                for ar in self.ar:
+                    ar.rdata.extend(self.OPTv6)
+                    self.code_state[0] = False
+
         logger.debug(f'edns0: {self.ar}')
         bytes_dnspkg = self.pack()
         self.ar.clear()
@@ -474,6 +494,9 @@ class QueueHandler(DNSRecord):
 async def response_dns_package(dnspkg):
     if (sock := dnspkg.sock) is not None:
         client = dnspkg.client
+        dnspkg.ar.clear()
+        dnspkg.ar.extend(dnspkg._ar)
+        logger.debug(f'dnspkg ar {dnspkg.ar}')
         data = dnspkg.pack()
         match sock.get_extra_info('socket').type:
             case socket.SOCK_STREAM:
@@ -756,4 +779,5 @@ def start():
     ipc_mmap = CircularBuffer(ipc_mmap=share_objects.ipc_mmap, ipc_mmap_size=share_objects.ipc_mmap_size)
     ipc_01_mmap = CircularBuffer(ipc_mmap=share_objects.ipc_01_mmap, ipc_mmap_size=share_objects.ipc_mmap_size)
     logger.debug(f'upstream dnsserver is {configs.dnsservers}')
+    logger.debug(f'edns0 ipv4 is {configs.edns0_ipv4_address}, ipv6 is {configs.edns0_ipv6_address}')
     asyncio.run(start_tasks())
