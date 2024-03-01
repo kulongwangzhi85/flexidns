@@ -65,7 +65,8 @@ class ChainMapRule(ChainMap):
         return None
 
 class RULERepository:
-    """用于处理rule规则加载到self.repositories中
+    """处理domain-set加载到self.repositories中
+    处理ip-set加载到self.repositories中
     """
 
     __slots__ = (
@@ -82,7 +83,10 @@ class RULERepository:
         self.default_rule = configs.default_rule
         self.static_rule = configs.static_rule
         self.set_usage = configs.set_usage[0]
-        classdata = {}
+
+        normalpriority_dataclass = {}
+        highpriority_dataclass = {}
+
         self.repositories = {
             'upstreams-checkpoint': {},
             'ip-sets-checkpoint': {}
@@ -92,15 +96,17 @@ class RULERepository:
         # 不可缓存，规则由服务启动时生成
 
         for set_name in self.set_usage.get('domain-set').get('upstreams').keys():
+            normalpriority_dataclass[set_name] = set()
 
-            classdata[set_name] = set()
+            highpriority_dataclass[set_name] = set()
+
             value = self.domainname_set.get(set_name).get('list')
             # 处理域名集合
             if isinstance(value, list):
                 for path_with_filename in value:
                     if ospath.exists(path_with_filename):
                         with open(path_with_filename, 'r') as f:
-                            tmp_list = classdata.get(set_name)
+                            tmp_list = normalpriority_dataclass.get(set_name)
                             for c in f:
                                 if c.startswith('regexp:'):
                                     # 未支持正则
@@ -112,7 +118,7 @@ class RULERepository:
             elif isinstance(path_with_filename := value, str):
                 if ospath.exists(path_with_filename):
                     with open(path_with_filename, 'r') as f:
-                        tmp_list = classdata.get(set_name)
+                        tmp_list = normalpriority_dataclass.get(set_name)
                         for c in f:
                             if c.startswith('regexp:'):
                                 # 未支持正则
@@ -122,20 +128,24 @@ class RULERepository:
                                 tmp_list.add(c)
             value = self.domainname_set.get(set_name).get('domainname')
             if value:
-                tmp_list = classdata.get(set_name)
+                tmp_list = highpriority_dataclass.get(set_name)
+                # 配置文件中的域名将覆盖列表中的域名规则
                 for domainname in value:
                     tmp_list.add(domainname)
 
         for set_name in self.set_usage.get('domain-set').get('blacklist').keys():
 
-            classdata[set_name] = set()
+            normalpriority_dataclass[set_name] = set()
+
+            highpriority_dataclass[set_name] = set()
+
             value = self.domainname_set.get(set_name).get('list')
             # 处理域名集合
             if isinstance(value, list):
                 for path_with_filename in value:
                     if ospath.exists(path_with_filename):
                         with open(path_with_filename, 'r') as f:
-                            tmp_list = classdata.get(set_name)
+                            tmp_list = normalpriority_dataclass.get(set_name)
                             for c in f:
                                 if c.startswith('regexp:'):
                                     # 未支持正则
@@ -147,7 +157,7 @@ class RULERepository:
             elif isinstance(path_with_filename := value, str):
                 if ospath.exists(path_with_filename):
                     with open(path_with_filename, 'r') as f:
-                        tmp_list = classdata.get(set_name)
+                        tmp_list = normalpriority_dataclass.get(set_name)
                         for c in f:
                             if c.startswith('regexp:'):
                                 # 未支持正则
@@ -157,12 +167,21 @@ class RULERepository:
                                 tmp_list.add(c)
             value = self.domainname_set.get(set_name).get('domainname')
             if value:
-                tmp_list = classdata.get(set_name)
+                tmp_list = highpriority_dataclass.get(set_name)
+                # 配置文件中的域名将覆盖列表中的域名规则
                 for domainname in value:
                     tmp_list.add(domainname)
 
-        if len(classdata) > 0:
-            for k, v in classdata.items():
+        if len(normalpriority_dataclass) > 0:
+            for k, v in normalpriority_dataclass.items():
+                self.daemon_write(
+                    domainname_list=v,
+                    rulename=k,
+                    cache_object=self.repositories['upstreams-checkpoint']
+                )
+
+        if len(highpriority_dataclass) > 0:
+            for k, v in highpriority_dataclass.items():
                 self.daemon_write(
                     domainname_list=v,
                     rulename=k,
@@ -227,17 +246,17 @@ class RULERepository:
 
         logger.debug(f'set_static_list: {self.set_static_list}')
 
-        classdata.clear()
+        normalpriority_dataclass.clear()
         for set_name in self.set_usage.get('domain-set').get('ip-set').keys():
 
-            classdata[set_name] = set()
+            normalpriority_dataclass[set_name] = set()
             value = self.domainname_set.get(set_name).get('list')
             # 处理域名集合
             if isinstance(value, list):
                 for path_with_filename in value:
                     if ospath.exists(path_with_filename):
                         with open(path_with_filename, 'r') as f:
-                            tmp_list = classdata.get(set_name)
+                            tmp_list = normalpriority_dataclass.get(set_name)
                             for c in f:
                                 if c.startswith('regexp:'):
                                     # 未支持正则
@@ -249,7 +268,7 @@ class RULERepository:
             elif isinstance(path_with_filename := value, str):
                 if ospath.exists(path_with_filename):
                     with open(path_with_filename, 'r') as f:
-                        tmp_list = classdata.get(set_name)
+                        tmp_list = normalpriority_dataclass.get(set_name)
                         for c in f:
                             if c.startswith('regexp:'):
                                 # 未支持正则
@@ -259,17 +278,20 @@ class RULERepository:
                                 tmp_list.add(c)
             value = self.domainname_set.get(set_name).get('domainname')
             if value:
-                tmp_list = classdata.get(set_name)
+                tmp_list = normalpriority_dataclass.get(set_name)
                 for domainname in value:
                     tmp_list.add(domainname)
 
-        if len(classdata) > 0:
-            for k, v in classdata.items():
+        if len(normalpriority_dataclass) > 0:
+            for k, v in normalpriority_dataclass.items():
                 self.daemon_write(
                     domainname_list=v,
                     rulename=k,
                     cache_object=self.repositories['ip-sets-checkpoint']
                 )
+
+
+        logger.debug(f'upstreams_list: {self.repositories['upstreams-checkpoint'].get('com').get('googleadservices')}')
 
     def daemon_write(self, domainname_list: list, rulename: str, cache_object: object):
         for i in domainname_list:
@@ -328,8 +350,7 @@ class RULERepository:
                                 top_key.update(
                                     {self.default_rule: rulename})
                             else:
-                                updict[nextkey] = {
-                                    self.default_rule: rulename}
+                                updict[nextkey] = {self.default_rule: rulename}
                     else:
                         if len(updict) == 0:
                             updict.update({nextkey: {}})
@@ -342,8 +363,7 @@ class RULERepository:
                                 _tmp = updict.get(nextkey)
                                 return _tmp
                     return updict.get(nextkey)
-            reduce(lambda x, y: convertdict(x, y, tmp_daemon),
-                   tmp_daemon, cache_object)
+            reduce(lambda x, y: convertdict(x, y, tmp_daemon), tmp_daemon, cache_object)
 
 
 class RULESearch(RULERepository):
@@ -810,10 +830,10 @@ class IPRepostitory:
         self.ipset = configs.ipset
         self.ip_int = None
         self.repostitorys = {4: {}, 6: {}}
-        classdata = {}
+        normalpriority_dataclass = {}
 
         for set_name in self.set_usage.get('domain-set').get('ip-set').values():
-            classdata[set_name] = set()
+            normalpriority_dataclass[set_name] = set()
             value = self.ipset.get(set_name).get('list')
             if isinstance(value, list):
                 for file_name in value:

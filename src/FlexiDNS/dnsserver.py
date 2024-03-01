@@ -336,7 +336,7 @@ class QueueHandler(DNSRecord):
     def soa_method(self):
         # 用于返回各种rcode方法
 
-        logger.debug(self.configs.blacklist_rcode)
+        logger.debug(f'config blacklist rcode: {self.configs.blacklist_rcode}')
         self.response_header = self.header
         match self.configs.blacklist_rcode:
             case 'success':
