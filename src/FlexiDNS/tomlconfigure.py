@@ -8,6 +8,7 @@
 
 import contextvars
 from copy import deepcopy
+from collections import deque
 import tomllib
 import socket
 import struct
@@ -29,12 +30,14 @@ class Share_Objects_Structure:
     ttl_timeout_response_recv: pipe
     ttl_timeout_response_send: pipe
     contextvars_dnsinfo: contextvars.ContextVar
+    history: deque
 
     def __init__(self):
         self.ttl_timeout_send, self.ttl_timeout_recv = Pipe()
         self.ttl_timeout_response_recv, self.ttl_timeout_response_send = pipe()
         self.contextvars_dnsinfo = contextvars.ContextVar(
             'dnsinfo', default=None)
+        self.history = deque(maxlen=500)
 
     def init(self):
 

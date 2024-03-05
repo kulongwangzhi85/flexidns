@@ -12,6 +12,7 @@ import pickle
 import signal
 import socket
 import struct
+import time
 
 from importlib.util import find_spec
 from importlib import reload
@@ -378,6 +379,7 @@ class QueueHandler(DNSRecord):
         query_name = self.q.qname
         query_type = self.q.qtype
         query_id = header.id
+        share_objects.history.append((time.time(), client[0], query_name))
 
         self.rules = self.rulesearch.search(str(query_name), repositorie='upstreams-checkpoint')
         logger.debug(f'rules: {self.rules}')
