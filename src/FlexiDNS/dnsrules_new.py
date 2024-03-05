@@ -93,7 +93,7 @@ class RULERepository:
         }
         # repositories: {'com': {'baidu': {'www': {'default-rule': 'cn'}, 'teiba':{'default-rule': 'cn'}}},...}
         # 用于存放配置文件中配置的域名集合，数量会多余self.ruleswildcard。测试时二十万左右条域名
-        # 不可缓存，规则由服务启动时生成
+        # 不可持久化缓存，规则由服务启动时加载生成
 
         for set_name in self.set_usage.get('domain-set').get('upstreams').keys():
             normalpriority_dataclass[set_name] = set()

@@ -15,6 +15,7 @@ import struct
 from logging import getLogger
 
 from .tomlconfigure import configs
+from .tomlconfigure import share_objects
 
 logger = getLogger(__name__)
 
@@ -97,6 +98,8 @@ class ManagerMmap:
                     return self.rules(cli_encode.get(i))
                 case 'cache':
                     return self.cache(cli_encode.get(i))
+                case 'history':
+                    return self.history(cli_encode.get(i))
 
     def rules(self, command: dict) -> bytes:
         """用于域名对应的rule查询或修改
@@ -251,6 +254,31 @@ class ManagerMmap:
                 logger.debug(f'data length: {data_length} data: {data}')
                 return data_length
 
+
+    def history(self, command: dict) -> bytes:
+        """用于域名对应的rule查询或修改
+
+        args: {'history': {'all': True, 'cmd': 'history'}}
+
+        Returns:
+            _type_: bytes: data_length
+            [('domain name', '<None> | <rule name>'), (...)]
+        """
+        logger.debug(f'received command {command}')
+
+        if command.get('all'):
+            data_length, data = self.__send_data(share_objects.history)
+            if len(data) > self.mm.size():
+                self.mm.resize(len(data))
+                self.mm.seek(0)
+                self.mm.write(data)
+                logger.debug('mmap write done')
+            else:
+                self.mm.seek(0)
+                self.mm.write(data)
+                logger.debug('mmap write done')
+            logger.debug(f'data length: {data_length}')
+            return data_length
 
 commandmmap = ManagerMmap()
 

@@ -4,6 +4,7 @@
 """建立socket，用于命令行方式执行cache相关操作, 例如显示，新增，删除"""
 
 import base64
+import datetime
 import mmap
 import os
 import pickle
@@ -195,6 +196,62 @@ class CacheOperate:
         finally:
             # 关闭套接字
             client_socket.close()
+            os.close(fd)
+
+    def history(self, args):
+        """
+        args: {'history': {'all': True, 'cmd': 'history'}}
+        """
+        # 用于rules命令查询
+        if self._verify_args(args) is False:
+            print("invalid domain name!", flush=True, file=stderr)
+            os._exit(1)
+        message_data = pickle.dumps(args)
+        client_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client_socket.setblocking(True)
+        try:
+            # 连接到服务器
+            client_socket.connect(self.socket_file)
+
+            # 发送消息给服务器
+            client_socket.sendall(message_data)
+
+            # 接收服务器的响应
+            struct_data_length = client_socket.recv(1024)
+            struct_length_fmt = f'!{len(struct_data_length)//2}H'
+            data_length = struct.unpack(struct_length_fmt, struct_data_length)
+
+            fd = os.open(self.mmap_file, os.O_RDONLY)
+            mm = mmap.mmap(fd, sum(data_length), prot=mmap.PROT_READ)
+            mmdata = mm.readline()
+            try:
+                mmdata_bytes = pickle.loads(base64.b64decode(mmdata))
+            except UnpicklingError as e:
+                mmdata = b''
+                print('error:', e, file=stderr, flush=True)
+            if mmdata_bytes is True:
+                return 
+
+            # 显示客户端查询历史记录
+            x = PrettyTable()
+            x.field_names = ['time', 'client', 'domain name']
+            for i in mmdata_bytes:
+                if i is not None:
+                    x.add_row(
+                        (
+                            datetime.datetime.fromtimestamp(i[0]).strftime('%Y-%m-%d %H:%M:%S.%f'),
+                            i[1],
+                            i[2]
+                        )
+                    )
+            print(x)
+
+        except socket.error as e:
+            print("通信错误:", e)
+        finally:
+            # 关闭套接字
+            client_socket.close()
+            os.close(fd)
 
     def _format(self, b64_data):
         import base64
