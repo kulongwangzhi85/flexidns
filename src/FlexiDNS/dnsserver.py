@@ -17,6 +17,7 @@ import time
 from importlib.util import find_spec
 from importlib import reload
 from functools import partial
+from random import shuffle
 from itertools import zip_longest
 from logging import getLogger
 
@@ -132,7 +133,7 @@ class QueueHandler(DNSRecord):
 
         logger.debug('generate dns object')
         self.cachedata = self.new_cache.getdata(self.q.qname, self.q.qtype)
-        logger.debug(f'get cache time ar {self._ar}')
+        logger.debug(f'get cache time')
 
     def __setstate__(self, state):
         self.new_cache = new_cache
@@ -273,6 +274,9 @@ class QueueHandler(DNSRecord):
             for rr, auth in zip_longest(self.rr, self.auth, fillvalue=None):
 
                 if rr:
+                    if rr.rtype == QTYPE.CNAME:
+                        self.rulesearch.cname_map_qname(cname=rr.rdata, rule=self.rules)
+
                     logger.debug(f'original rr ttl: {rr.ttl}')
                     if rr.ttl <= min_ttl:
                         rrttl = min_ttl
@@ -341,8 +345,25 @@ class QueueHandler(DNSRecord):
         self.response_header = self.header
         match self.configs.blacklist_rcode:
             case 'success':
-                self.add_answer(RR(self.q.qname, QTYPE.CNAME, rdata=CNAME("a.gtld-servers.net"), ttl=self.configs.ttl_max))
-                self.add_auth(RR("a.gtld-servers.net", QTYPE.SOA, rdata=SOA("a.gtld-servers.net","nstld.verisign-grs.com", (1800, 1800, 900, 604800, 86400)), ttl=self.configs.ttl_max))
+                self.rulesearch.cname_map_qname(cname=self.configs.BLACKLIST_MNAME, rule=self.rules)
+                self.add_answer(
+                    RR(
+                        self.q.qname,
+                        QTYPE.CNAME,
+                        rdata=CNAME(self.configs.BLACKLIST_MNAME), ttl=self.configs.ttl_max)
+                    )
+
+                self.add_auth(
+                    RR(
+                        self.configs.BLACKLIST_MNAME,
+                        QTYPE.SOA,
+                        rdata=SOA(
+                            self.configs.BLACKLIST_MNAME,
+                            self.configs.BLACKLIST_RNAME,
+                            (1800, 1800, 900, 604800, 86400)),
+                            ttl=self.configs.ttl_max
+                        )
+                    )
                 self.header.set_rcode(0)
                 self.new_cache.setdata(self)
                 self.new_cache.setttl(self.q.qname, self.q.qtype, self.configs.ttl_max)
@@ -429,7 +450,20 @@ class QueueHandler(DNSRecord):
             for key, value in self.cachedata.items():
                 match key:
                     case "rr":
-                        self.rr.extend(value)
+                        if configs.cache_fix:
+                            self.rr.extend(value)
+                        else:
+                            fix = []
+                            for _rr in value:
+                                if _rr.rtype == QTYPE.CNAME:
+                                    self.rr.append(_rr)
+                                elif _rr.rtype == QTYPE.A or _rr.rtype == QTYPE.AAAA or _rr.rtype == QTYPE.NS or _rr.rtype == QTYPE.MX:
+                                    fix.append(_rr)
+                                else:
+                                    self.rr.append(_rr)
+                            shuffle(fix)
+                            self.rr.extend(fix)
+
                         for rr in self.rr:
                             rr.ttl = cachettl
                     case "auth":

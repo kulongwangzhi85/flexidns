@@ -1,81 +1,223 @@
 #!/usr/bin/env python3
 
 from os import getuid, _exit
-import argparse
+from sys import stderr
 
-def start(configfile):
+def start(args):
     from FlexiDNS.dnsmain import main
-    main(configfile)
+    main(args.config)
 
-
-def stop():
+def stop(args):
     from FlexiDNS.dnsmain import stop_server
     stop_server()
 
-
-def cache_cli(args):
+def caches(args):
     from FlexiDNS.cacheoperate import CacheOperate
     co = CacheOperate()
-    co.cache(args)
+    if hasattr(args, 'show_qname'):
+        args.cmd = 'show'
+        args.qname = args.show_qname
+        co.cache({
+            'cache':
+            {
+                'cmd': 'show',
+                'all': args.all,
+                'qname':args.show_qname
+            }
+        })
+    elif hasattr(args, 'delete_qname'):
+        args.cmd = 'delete'
+        args.qname = args.delete_qname
+        co.cache({
+            'cache':
+            {
+                'cmd': 'delete',
+                'qname':args.delete_qname
+            }
+        })
 
-
-def rules_cli(args):
+def historys(args):
     from FlexiDNS.cacheoperate import CacheOperate
     co = CacheOperate()
-    co.rules(args)
+    co.history({'history': { 'all': args.all }})
 
+def rules(args):
+    from FlexiDNS.cacheoperate import CacheOperate
+    co = CacheOperate()
+    co.rules({
+        'rules':
+        {
+            'name': args.name,
+            'delete': args.delete,
+            'rule': args.rule,
+            'count': args.count,
+            'show': args.show
+        }
+    })
 
-def version():
+def version(args):
     from FlexiDNS import __version__
-    print(__version__)
+    print(f'flexidns {__version__}')
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(
-        prog='FlexiDNS',
+    from argparse import ArgumentParser
+    parser = ArgumentParser(
+        prog='flexidns',
         add_help=True,
         description='Python Code Dns Server Cmd Line Options',
         epilog='Copyright (c) 2020, 2021, HomePage https://github.com/kulongwangzhi85/flexidns'
-    )
+        )
 
     sub_parser = parser.add_subparsers(
         title='flexidns cli',
         metavar='',
         help='flexidns server server operate command, use {start, stop, cache, rules, version} -h/--help for more information'
-    )
+        )
+
+    """
+    cache tools
+    """
     cache_parser = sub_parser.add_parser('cache', help='dns cache operate cli')
+    cache_parser.set_defaults(func=caches)
 
-    sub_subparser = cache_parser.add_subparsers(title='cache subcommands', metavar='')
-    show_cmd = sub_subparser.add_parser('show', help='show dns cache')
-    group = show_cmd.add_mutually_exclusive_group(required=True)
-    group.add_argument('-n', '--name', nargs='+', metavar='<domain name>', dest='qname',
-                       help='show one dns domain name record', default=None, action='store')
-    group.add_argument('-a', '--all', help='show all dns domain name record',
-                       default=False, action='store_true')
-    show_cmd.set_defaults(show_func=cache_cli)
+    cache_subparser = cache_parser.add_subparsers(title='cache tools', metavar='', required=True)
 
-    delete_cmd = sub_subparser.add_parser('delete', help='delete dns cache')
-    delete_cmd.add_argument('-n', '--name', nargs='+', metavar='<domain name>', dest='qname',
-                            help='delete one dns domain name record', default=None, action='store')
-    delete_cmd.set_defaults(delete_func=cache_cli)
+    cache_show = cache_subparser.add_parser('show', help='show dns caches')
 
+    show_me_group = cache_show.add_mutually_exclusive_group(required=True)
+    show_me_group.add_argument(
+        '-n',
+        '--name',
+        nargs='+',
+        metavar='<domain name>',
+        dest='show_qname',
+        default=None,
+        action='store',
+        help='show one dns domain name record'
+        )
+    show_me_group.add_argument(
+        '-a',
+        '--all',
+        default=False,
+        action='store_true',
+        help='show all dns domain name record'
+        )
+
+    cache_delete = cache_subparser.add_parser('delete', help='delete dns cache')
+    cache_delete.add_argument(
+        '-n',
+        '--name',
+        nargs='+',
+        metavar='<domain name>',
+        dest='delete_qname',
+        default=None,
+        action='store',
+        required=True,
+        help='delete one dns domain name record'
+        )
+
+    """
+    start server
+    """
     start_parser = sub_parser.add_parser('start', help='start dns server')
-    start_parser.add_argument('-c', '--config', type=str, help='dns server config file',
-                              action='store', required=True, metavar='<toml config file>')
     start_parser.set_defaults(func=start)
+    start_parser.add_argument(
+        '-c',
+        '--config',
+        type=str,
+        action='store',
+        required=True,
+        metavar='<toml config file>',
+        help='dns server config file'
+        )
 
+    """
+    stop server
+    """
     stop_parser = sub_parser.add_parser('stop', help='stop dns server')
     stop_parser.set_defaults(func=stop)
 
-    rule_group = sub_parser.add_parser('rules', help='domain name rule operate cli')
-    rule_me_group = rule_group.add_mutually_exclusive_group(required=True)
-    rule_me_group.add_argument('-n', '--name', nargs='+', metavar='<domain name>', dest='name', action='extend', help='view or modify specitied domain name rule information')
-    rule_me_group.add_argument('-d', '--delete', nargs='+', metavar='<domain name>', dest='delete', action='extend', help='delete specitied domain name rule from rules cacheed')
-    rule_group.add_argument('-r', '--rule', type=str, metavar='<target rule>',dest='rule', action='store', help='modify rule to target rule')
-    rule_me_group.add_argument('-c', '--count', default=False, action='store_true', help='view rule counts')
-    rule_me_group.add_argument('-s', '--show', dest='show', action='store_true', default=False, help='display dns rules')
-    rule_group.set_defaults(rule_func=rules_cli)
+    """
+    rules tools
+    """
+    rule_parser = sub_parser.add_parser('rules', help='domain name rule operate cli')
+    rule_parser.set_defaults(func=rules)
+    rule_me_group = rule_parser.add_mutually_exclusive_group(required=True)
+    rule_me_group.add_argument(
+        '-n',
+        '--name',
+        nargs='+',
+        metavar='<domain name>',
+        dest='name',
+        action='extend',
+        help='view or modify specitied domain name rule information'
+        )
 
+    rule_me_group.add_argument(
+        '-d',
+        '--delete',
+        nargs='+',
+        metavar='<domain name>',
+        dest='delete',
+        action='extend',
+        help='delete specitied domain name rule from rules cacheed'
+        )
+
+    rule_parser.add_argument(
+        '-r',
+        '--rule',
+        type=str,
+        metavar='<target rule>',
+        dest='rule',
+        action='store',
+        help='modify rule to target rule'
+        )
+
+    rule_me_group.add_argument(
+        '-c',
+        '--count',
+        default=False,
+        action='store_true',
+        help='view rule counts'
+        )
+    rule_me_group.add_argument(
+        '-s',
+        '--show',
+        dest='show',
+        action='store_true',
+        default=False,
+        help='display dns rules'
+        )
+
+    """
+    history tools
+    """
+    history_parser = sub_parser.add_parser('history', help='display requests dns client history')
+    history_parser.set_defaults(func=historys)
+    history_parser.add_argument(
+        '-a',
+        '--all',
+        action='store_true',
+        default=True,
+        help='display all dns client history'
+        )
+
+    """
+    history_parser.add_argument(
+        '-c',
+        '--client',
+        action='store_true',
+        default=history_cli,
+        help='display all dns client history'
+        )
+    add_argument中添加default时，命名空间携带如下信息
+    Namespace(all=<function history_cli at 0x77d6c061dee0>, client=<function history_cli at 0x77d6c061dee0>)
+    """
+
+    """
+    version
+    """
     version_parser = sub_parser.add_parser('version', help='display FlexiDNS version')
     version_parser.set_defaults(func=version)
 
@@ -83,48 +225,23 @@ def parse_arguments():
 
 
 if __name__ == '__main__':
-    from sys import stderr
     uid = getuid()
     if uid != 0:
         print('Please run as root', file=stderr, flush=True)
         _exit(1)
     parser = parse_arguments()
     args = parser.parse_args()
+    """
+    解析参数
+    args返回命名空间，args空间中携带解析后的各个参数
+    命名空间可以使用vars(args)转换为字典
+    vars()方法可转换带有__dict__属性的对象为字典
+    Namespace(name=None, delete=None, rule=None, count=True, show=False, func=<function rules at 0x7fd8a0721f80>)
+    func=<...>，这个func名称可以自定义，在set_defaults中定义
+    """
+
     if hasattr(args, 'func'):
-        if args.func == start:
-            if args.config is not None:
-                args.func(args.config)
-            else:
-                print("Please provide toml format the config file path",
-                      file=stderr, flush=True)
-                _exit(1)
-        else:
-            args.func()
-
-    elif hasattr(args, 'delete_func'):
-        cache_command = vars(args)
-        cache_command.pop('delete_func', None)
-        cache_command['cmd'] = 'delete'
-        cache_cli({'cache': cache_command})
-
-    elif hasattr(args, 'show_func'):
-        cache_command = vars(args)
-        cache_command.pop('show_func', None)
-        cache_command['cmd'] = 'show'
-        cache_cli({'cache': cache_command})
-
-    elif hasattr(args, 'rule_func'):
-        if args.rule and args.delete:
-            parser.print_help()
-            _exit(1)
-        elif args.name or args.count or args.show or args.delete:
-            rules_command = vars(args)
-            rules_command.pop('rule_func', None)
-            rules_cli({'rules': rules_command})
-        else:
-            parser.print_help()
-            _exit(1)
-
+        args.func(args)
     else:
         parser.print_usage()
         _exit(0)

@@ -8,10 +8,8 @@ NOTE：这里使用mmap与pipe同时使用，不用奇怪!主要学习为目的
 
 import base64
 import mmap
-from math import ceil
 import os
 import pickle
-import struct
 from logging import getLogger
 
 from .tomlconfigure import configs
@@ -45,42 +43,10 @@ class ManagerMmap:
         return dir(self)
 
     def __send_data(self, data):
-        BASE_SIZE = [65535,]
-        ''' 此处使用struct封装后，向客户端socket发送数据
-        struct结构：
 
-        1、2 bytes: 固定2字节长度
-        作用：携带的数据为，第二部分跟随的数据长度边界
-        内容：整数值，可容纳整数范围根据struct格式字符，这里使用H，占用2字节，可包含0-65535整数值
-        含义：n个格式字符，例如3,这样也就知道跟随的数据有3个H，每个H，2个字节
-
-        2、2-x bytes： 不固定字节长度
-        作用：携带的数据为，数据长度
-        内容：n个H，n由第一步携带数据获得。例如3H，struct数据内容根据根据实际数据长度65535, 65535, 1024，客户端使用sum()方法即可知道数据的完整长度
-
-        3、x-x bytes:  不固定定字节长度 作用：数据本体
-        注意：由于第一个2bytes使用固定长度，因此只能容纳0-65535，也就是说明第二个报文内只能容纳65536个H，因此该方法最大只支持4GiB大小的数据传输
-        改进：未来如果需要传输大于4GiB的数据，可以将第二部分的struct格式字符由H修改为c，使用字符串方法传递数据长度
-        '''
         bytes_response_data = base64.b64encode(pickle.dumps(data))
-        # bytes_response_data = base64.b64encode(bytes(str(data), 'utf-8'))
-        bytes_response_command_length = len(bytes_response_data)
-        struct_length_step = ceil(bytes_response_command_length / 65535)
-        struct_pack_length_count = struct.pack('!H', struct_length_step)
-
-        struct_length_fmt = f'!{struct_length_step}H'
-        if bytes_response_command_length > 65535:
-            base_size = BASE_SIZE * (bytes_response_command_length // 65535)
-            base_size.append(bytes_response_command_length % 65535)
-
-            data_pack_length = struct.pack(struct_length_fmt, *base_size)
-        else:
-            data_pack_length = struct.pack(
-                struct_length_fmt, bytes_response_command_length)
-
-        # data_length = struct_pack_length_count + data_pack_length
-        # b'\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xc8T'
-        return data_pack_length, bytes_response_data
+        bytes_response_length = pickle.dumps(len(bytes_response_data))
+        return bytes_response_length, bytes_response_data
 
     def __createmmap(self, size):
         fd = os.open(self.MMAPFILE, os.O_RDWR | os.O_CREAT, 0o666)
@@ -161,6 +127,7 @@ class ManagerMmap:
             return pickle.dumps(command)
 
         if command.get('name'):
+            # -n 选项
             rules_results = []
             for i in command['name']:
                 if not i.endswith('.'):
@@ -181,8 +148,8 @@ class ManagerMmap:
                 self.mm.write(data)
                 logger.debug('mmap write done')
             command['name'] = data_length
-            logger.debug(f'data: {command}')
             command['cmd'] = 'name'
+            logger.debug(f'data: {command}')
             return pickle.dumps(command)
 
         if command.get('delete'):
@@ -258,7 +225,7 @@ class ManagerMmap:
     def history(self, command: dict) -> bytes:
         """用于域名对应的rule查询或修改
 
-        args: {'history': {'all': True, 'cmd': 'history'}}
+        args: {'history': {'all': True }}
 
         Returns:
             _type_: bytes: data_length

@@ -10,7 +10,6 @@ import os
 import pickle
 from pickle import UnpicklingError
 import socket
-import struct
 from sys import stderr
 from signal import signal, SIGPIPE, SIG_DFL
 
@@ -24,13 +23,12 @@ signal(SIGPIPE, SIG_DFL)
 
 class CacheOperate:
     def __init__(self):
-        from os import path, _exit
-        if path.exists(configs.sockfile):
+        if os.path.exists(configs.sockfile):
             self.socket_file = configs.sockfile
         else:
             outerr_message = "Server is not running, please use command 'systemctl start flexidns' or 'flexidns start --config /path/etc/flexidns/config.toml'"
             print(outerr_message, flush=True, file=stderr)
-            _exit(1)
+            os._exit(1)
 
         self.mmap_file = configs.mmapfile
 
@@ -71,7 +69,7 @@ class CacheOperate:
             if bytes_data:
                 data = pickle.loads(bytes_data)
                 match data['cmd']:
-                    case'show':
+                    case 'show':
                         # 显示规则名
                         print(f'rules: {data["show"]}')
 
@@ -99,13 +97,10 @@ class CacheOperate:
 
                     case 'rule':
                         # 用于修改规则
-                        struct_length_fmt = f'!{len(data["rule"])//2}H'
-                        data_length = struct.unpack(
-                            struct_length_fmt, data['rule'])
+                        data_length = pickle.loads(data['rule'])
 
                         fd = os.open(self.mmap_file, os.O_RDONLY)
-                        mm = mmap.mmap(fd, sum(data_length),
-                                       prot=mmap.PROT_READ)
+                        mm = mmap.mmap(fd, data_length, prot=mmap.PROT_READ)
                         mmdata = mm.readline()
                         mmdata_bytes = pickle.loads(base64.b64decode(mmdata))
                         x = PrettyTable()
@@ -117,13 +112,10 @@ class CacheOperate:
 
                     case 'name':
                         # 查询指定域名规则
-                        struct_length_fmt = f'!{len(data["name"])//2}H'
-                        data_length = struct.unpack(
-                            struct_length_fmt, data['name'])
+                        data_length = pickle.loads(data['name'])
 
                         fd = os.open(self.mmap_file, os.O_RDONLY)
-                        mm = mmap.mmap(fd, sum(data_length),
-                                       prot=mmap.PROT_READ)
+                        mm = mmap.mmap(fd, data_length, prot=mmap.PROT_READ)
                         mmdata = mm.readline()
                         mmdata_bytes = pickle.loads(base64.b64decode(mmdata))
                         x = PrettyTable()
@@ -154,12 +146,10 @@ class CacheOperate:
             client_socket.sendall(message_data)
 
             # 接收服务器的响应
-            struct_data_length = client_socket.recv(1024)
-            struct_length_fmt = f'!{len(struct_data_length)//2}H'
-            data_length = struct.unpack(struct_length_fmt, struct_data_length)
+            struct_data_length = pickle.loads(client_socket.recv(1024))
 
             fd = os.open(self.mmap_file, os.O_RDONLY)
-            mm = mmap.mmap(fd, sum(data_length), prot=mmap.PROT_READ)
+            mm = mmap.mmap(fd, struct_data_length, prot=mmap.PROT_READ)
             mmdata = mm.readline()
             try:
                 mmdata_bytes = pickle.loads(base64.b64decode(mmdata))
@@ -169,28 +159,21 @@ class CacheOperate:
             if mmdata_bytes is True:
                 return 
 
-            if len(mmdata) > 0 or len(mmdata) == data_length:
-
-                if type(mmdata_bytes) is set:
-                    for i in mmdata_bytes:
-                        print(i)
-                elif type(mmdata_bytes) is lrucacheout:
-                    for data in mmdata_bytes.search_cache.values():
-                        for i in data:
-                            for s in i:
-                                for x in s.values():
-                                    if isinstance(x, int):
-                                        continue
-                                    if len(x) > 0:
-                                        for xx in x:
-                                            print(xx)
-                                    else:
-                                        continue
-            else:
-                print(
-                    f'mmdata length: {len(mmdata)}, struct length: {data_length}, struct_data_length: {struct_data_length}')
-                print(f'struct length: {sum(data_length)}')
-
+            if type(mmdata_bytes) is set:
+                for i in mmdata_bytes:
+                    print(i)
+            elif type(mmdata_bytes) is lrucacheout:
+                for data in mmdata_bytes.search_cache.values():
+                    for i in data:
+                        for s in i:
+                            for x in s.values():
+                                if isinstance(x, int):
+                                    continue
+                                if len(x) > 0:
+                                    for xx in x:
+                                        print(xx)
+                                else:
+                                    continue
         except socket.error as e:
             print("通信错误:", e)
         finally:
@@ -200,12 +183,9 @@ class CacheOperate:
 
     def history(self, args):
         """
-        args: {'history': {'all': True, 'cmd': 'history'}}
+        args: {'history': {'all': True }}
         """
-        # 用于rules命令查询
-        if self._verify_args(args) is False:
-            print("invalid domain name!", flush=True, file=stderr)
-            os._exit(1)
+        # 用于history命令查询
         message_data = pickle.dumps(args)
         client_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         client_socket.setblocking(True)
@@ -217,13 +197,12 @@ class CacheOperate:
             client_socket.sendall(message_data)
 
             # 接收服务器的响应
-            struct_data_length = client_socket.recv(1024)
-            struct_length_fmt = f'!{len(struct_data_length)//2}H'
-            data_length = struct.unpack(struct_length_fmt, struct_data_length)
+            struct_data_length = pickle.loads(client_socket.recv(1024))
 
             fd = os.open(self.mmap_file, os.O_RDONLY)
-            mm = mmap.mmap(fd, sum(data_length), prot=mmap.PROT_READ)
-            mmdata = mm.readline()
+            mm = mmap.mmap(fd, struct_data_length, prot=mmap.PROT_READ)
+
+            mmdata = mm.read(struct_data_length)
             try:
                 mmdata_bytes = pickle.loads(base64.b64decode(mmdata))
             except UnpicklingError as e:

@@ -385,7 +385,7 @@ class RULESearch(RULERepository):
         'rulesstatic',
         'resultlist',
         'default_rule',
-        'configs'
+        'configs',
     )
 
     def __new__(cls):
@@ -399,6 +399,7 @@ class RULESearch(RULERepository):
         self.configs = configs
         self.customizerules = {}
         # 用于自定义修改域名规则
+        # 用于保存cname与qname关系
         # NOTE：如果将用户自定义rule存放与rulesfull，会因为lru算法将其删除
 
         self.rulesfull = LRUCache(maxsize=self.configs.lru_maxsize)
@@ -482,7 +483,6 @@ class RULESearch(RULERepository):
                 self.ruleswildcard.update(v)
             elif k == 'customizerules':
                 self.customizerules.update(v)
-                logger.debug(f'customizerules: {self.customizerules}, v: {v}')
 
     def __getattr__(self, name):
         if name == "new_cache":
@@ -800,6 +800,12 @@ class RULESearch(RULERepository):
         reduce(lambda x, y: delete_validated(
             x, y, domainname), domainname, self.ruleswildcard)
 
+    def cname_map_qname(self, rule: str, cname: str):
+
+        if rule is None:
+            rule = self.default_rule
+        logger.debug(f'cname {cname} rule is {rule}')
+        self.customizerules.update({str(cname): rule})
 
 class IPRepostitory:
     """

@@ -81,6 +81,16 @@ class lrucacheout:
     """域名缓存类，使用cacheout.LRUCache类实现互联网域名lru。静态域名使用dict
     字典缓存，使用pickle.dump()方法实现序列化
 
+    缓存结构：
+    ChainMap(lrucache(dns 资源记录), dict(静态记录))
+
+    lrucache结构：
+    {<DNS: Header>: [<DNS: RR]}
+    or
+    {<DNS: Header>: [<DNS: AR]}
+    or
+    {<DNS: Header>: [<DNS: AUTH]}
+
     search_cache: type: dict, 显式定义 chainmap_a_cache, chainmap_aaaa_cache, chainmap_https_cache, chainmap_soa_cache,常用dns请求类型
     在请求时，动态生成其它类型的dns缓存
     """
