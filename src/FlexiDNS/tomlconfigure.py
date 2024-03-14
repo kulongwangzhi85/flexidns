@@ -119,6 +119,7 @@ class Configures_Structure:
         self.expired_reply_ttl = inittomlconfig.expired_reply_ttl
         self.ttl_max = inittomlconfig.ttl_max
         self.ttl_min = inittomlconfig.ttl_min
+        self.cache_fix = inittomlconfig.cache_fix
         self.tls_cert = inittomlconfig.tls_cert
         self.tls_cert_key = inittomlconfig.tls_cert_key
         self.tls_cert_ca = inittomlconfig.tls_cert_ca
@@ -130,6 +131,8 @@ class Configures_Structure:
         self.query_threshold = inittomlconfig.query_threshold
         self.blacklist = inittomlconfig.blacklist
         self.blacklist_rcode = inittomlconfig.blacklist_rcode
+        self.BLACKLIST_MNAME = inittomlconfig.BLACKLIST_MNAME
+        self.BLACKLIST_RNAME = inittomlconfig.BLACKLIST_RNAME
         self.fallback = inittomlconfig.fallback
         self.ipset = inittomlconfig.ipset
         self.bind = inittomlconfig.bind
@@ -220,9 +223,12 @@ class TomlConfigures:
     LOG_FILE = f'/var/log/{__package__.lower()}.log'
     LOG_ERROR = f'/var/log/{__package__.lower()}_err.log'
     LOG_LEVEL = 'debug'
+    CACHE_FIX = True
     LOG_SIZE = 1
     LOG_COUNTS = 3
-    
+    BLACKLIST_MNAME = 'a.gtld-servers.net.'
+    BLACKLIST_RNAME = 'nstld.verisign-grs.com'
+
     TTL_MAX = 7200
     TTL_MIN = 600
     TTL_FAKEIP = 6
@@ -299,6 +305,7 @@ class TomlConfigures:
 
         self.nameserver = _gloabls_options.get('nameserver')
         self.expired_reply_ttl = _gloabls_options.get('expired_reply_ttl', TomlConfigures.TTL_EXPIRED_REPLY)
+        self.cache_fix = _gloabls_options.get('cachefix', TomlConfigures.CACHE_FIX)
         self.ttl_max = _gloabls_options.get('ttl_max', TomlConfigures.TTL_MAX)
         self.ttl_min = _gloabls_options.get('ttl_min', TomlConfigures.TTL_MIN)
         self.fakeip_ttl = _gloabls_options.get('fakeip_ttl', TomlConfigures.TTL_FAKEIP)
@@ -415,6 +422,8 @@ class TomlConfigures:
         _black_set = set()
         _black_list = _blacklist_options.get('domain-set', [])
         self.blacklist_rcode = _blacklist_options.get('rcode', None)
+        self.BLACKLIST_MNAME = TomlConfigures.BLACKLIST_MNAME
+        self.BLACKLIST_RNAME = TomlConfigures.BLACKLIST_RNAME
 
         if len(_black_list) > 0:
             for v in _black_list:

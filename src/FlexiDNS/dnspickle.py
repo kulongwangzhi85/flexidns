@@ -18,11 +18,14 @@ datapool.data = {}
 
 def serialize(*obj):
     from .tomlconfigure import configs
-    with open(configs.cache_file, 'wb') as f:
-        for i in obj:
-            obj_id = i.__class__.__name__
-            logger.debug(f'pickle serializing {obj_id}, obj {i}')
-            pickle.dump((obj_id, i), f)
+    try:
+        with open(configs.cache_file, 'wb') as f:
+            for i in obj:
+                obj_id = i.__class__.__name__
+                logger.debug(f'pickle serializing {obj_id}, obj {i}')
+                pickle.dump((obj_id, i), f)
+    except PermissionError as e:
+        logger.error(f'cannot write to cache file {e}')
 
 
 def deserialize(obj_name=None):
