@@ -10,6 +10,7 @@ import contextvars
 from copy import deepcopy
 from collections import deque
 import tomllib
+import tempfile
 import socket
 import struct
 import mmap
@@ -84,7 +85,6 @@ class Configures_Structure:
     default_rule: urandom = urandom(12).hex()
     default_server: dict = field(default_factory=lambda: {"udp": "[::1]:53"})
     ipset: dict = field(default_factory=lambda: {})
-    mmapfile: str = f"/dev/shm/{__package__.lower()}.mmap"
     rulesjson: dict = field(default_factory=lambda: {})
     lru_maxsize: int = 4096
     tls_cert: str = ""
@@ -99,6 +99,7 @@ class Configures_Structure:
     loglevels: dict = field(default_factory=lambda: {'debug': DEBUG, 'info': INFO, 'error': ERROR,'warning': WARNING, 'critical': CRITICAL})
 
     def init(self, inittomlconfig):
+        self.mmapfile: tuple = tempfile.mkstemp(prefix=f'.{__package__.lower()}')
         self.logfile = inittomlconfig.logfile
         self.logerror = inittomlconfig.logerror
         self.loglevel = inittomlconfig.loglevel

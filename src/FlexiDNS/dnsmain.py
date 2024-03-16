@@ -41,8 +41,8 @@ def signal_exit_server(signum, frame):
     from .tomlconfigure import configs
     if os.path.exists(configs.sockfile):
         os.remove(configs.sockfile)
-    if os.path.exists(configs.mmapfile):
-        os.remove(configs.mmapfile)
+    if os.path.exists(configs.mmapfile[1]):
+        os.remove(configs.mmapfile[1])
     if local_school.start_server.is_alive():
         local_school.start_server.join()
         local_school.start_server.close()
