@@ -624,9 +624,8 @@ class CommandUnixProtocol:
 
     def data_received(self, command):
         logger.debug(f'Command Unix Recv: {command}')
-        data_length = self.commandmmap.receving(command)
-        logger.debug(f'received data length: {data_length}')
-        self.transport.write(data_length)
+        data = pickle.dumps(self.commandmmap.receving(command))
+        self.transport.write(data)
         self.transport.write_eof()
 
     def error_received(self, exc):

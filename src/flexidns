@@ -12,7 +12,7 @@ def stop(args):
     stop_server()
 
 def caches(args):
-    from FlexiDNS.cacheoperate import CacheOperate
+    from FlexiDNS.command import CacheOperate
     co = CacheOperate()
     if hasattr(args, 'show_qname'):
         args.cmd = 'show'
@@ -37,12 +37,12 @@ def caches(args):
         })
 
 def historys(args):
-    from FlexiDNS.cacheoperate import CacheOperate
+    from FlexiDNS.command import CacheOperate
     co = CacheOperate()
     co.history({'history': { 'all': args.all }})
 
 def rules(args):
-    from FlexiDNS.cacheoperate import CacheOperate
+    from FlexiDNS.command import CacheOperate
     co = CacheOperate()
     co.rules({
         'rules':

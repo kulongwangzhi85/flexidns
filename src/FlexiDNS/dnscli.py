@@ -12,6 +12,8 @@ import os
 import pickle
 from logging import getLogger
 
+from dnslib import DNSLabel
+
 from .tomlconfigure import configs
 from .tomlconfigure import share_objects
 
@@ -20,15 +22,16 @@ logger = getLogger(__name__)
 
 class ManagerMmap:
     """管理MMAP,写入与读取数据
-    mmaps: key -> fd, value -> mmap[index]
+    mmaps: key -> tempfile, value -> mmap[index]
     目标实现：
     """
+    __slots__ = ('new_cache', 'MMAPFILE', 'mm', 'tempfile', 'rulesearch',)
 
     def __init__(self):
         from .dnscache import new_cache
         self.new_cache = new_cache
         self.MMAPFILE = configs.mmapfile
-        self.mm = self.__createmmap(1024)
+        self.mm, self.tempfile = self.__create_mmap(1024)
 
     def __getattr__(self, name):
         if name == 'rulesearch':
@@ -42,18 +45,53 @@ class ManagerMmap:
         self.__getattr__('rulesearch')
         return dir(self)
 
-    def __send_data(self, data):
-
+    def __data_serialization(self, data):
         bytes_response_data = base64.b64encode(pickle.dumps(data))
-        bytes_response_length = pickle.dumps(len(bytes_response_data))
+        bytes_response_length = len(bytes_response_data)
         return bytes_response_length, bytes_response_data
 
-    def __createmmap(self, size):
-        fd = os.open(self.MMAPFILE, os.O_RDWR | os.O_CREAT, 0o666)
-        os.write(fd, b'\x00' * size)
-        mm = mmap.mmap(fd, size)
-        os.close(fd)
-        return mm
+    def __create_mmap(self, size):
+        os.write(self.MMAPFILE[0], b'\x00' * size)
+        mm = mmap.mmap(self.MMAPFILE[0], size)
+        os.close(self.MMAPFILE[0])
+        return mm, base64.b64encode(pickle.dumps(self.MMAPFILE[1]))
+
+    def __write_mmap(self, data):
+        if len(data) > self.mm.size():
+            # self.mm = self.__create_mmap(len(data))
+            self.mm.resize(len(data))
+            self.mm.seek(0)
+            self.mm.write(data)
+        else:
+            self.mm.seek(0)
+            self.mm.write(data)
+
+    def __response_data(self, *, command=None, argparse=None, data_length=0, data=None):
+        """
+        统一返回数据
+        Args:
+            data_length (int): 响应数据长度
+            data (bytes): 响应数据
+        Returns:
+            {
+                "type": "command name",
+                "argparse": "argparse name",
+                "data_length": data_length,
+                "data": data
+            }
+
+            说明： data_length如果等于0，则表示data字段携带有效数据
+            大于0，表示mmap对象数据长度, data字段携带mmap文件路径
+
+            NOTE：mmap文件路径由tempfile.mkstemp生成
+
+        """
+        return {
+            "type": command,
+            "argparse": argparse,
+            "data_length": data_length,
+            "data": data if data is not None else self.MMAPFILE[1]
+        }
 
     def receving(self, command: bytes) -> bytes:
         cli_encode = pickle.loads(command)
@@ -92,16 +130,18 @@ class ManagerMmap:
         logger.debug(f'received command {command}')
 
         if command.get('show'):
-            command['show'] = list(configs.rulesjson.keys())
-            logger.debug(f'rules: {command}')
-            command['cmd'] = 'show'
-            return pickle.dumps(command)
+            return self.__response_data(
+                command='rules',
+                argparse='show',
+                data=list(configs.rulesjson.keys())
+            )
 
         if command.get('count'):
-            command['count'] = len(self.rulesearch)
-            logger.debug(f'rules count: {command}')
-            command['cmd'] = 'count'
-            return pickle.dumps(command)
+            return self.__response_data(
+                command='rules',
+                argparse='count',
+                data=len(self.rulesearch)
+            )
 
         if command.get('rule'):
             logger.debug(f'command rule: {command}')
@@ -110,21 +150,17 @@ class ManagerMmap:
                 if not i.endswith('.'):
                     i += '.'
                 rules_results.append(self.rulesearch.modify(i, rule=command['rule']))
-            data_length, data = self.__send_data(rules_results)
+            data_length, data = self.__data_serialization(rules_results)
             logger.debug(f'received command {rules_results}')
-            if len(data) > self.mm.size():
-                self.mm.resize(len(data))
-                self.mm.seek(0)
-                self.mm.write(data)
-                logger.debug('mmap write done')
-            else:
-                self.mm.seek(0)
-                self.mm.write(data)
-                logger.debug('mmap write done')
-            command['rule'] = data_length
-            command['cmd'] = 'rule'
-            logger.debug(f'data: {command}')
-            return pickle.dumps(command)
+
+            self.__write_mmap(data)
+
+            return self.__response_data(
+                command='rules',
+                argparse='rule',
+                data_length=data_length,
+                data=self.tempfile
+            )
 
         if command.get('name'):
             # -n 选项
@@ -136,21 +172,18 @@ class ManagerMmap:
                 rules_results.append(
                     (i, 'static-rule' if searchresutls == configs.static_rule else searchresutls))
 
-            data_length, data = self.__send_data(rules_results)
+            data_length, data = self.__data_serialization(rules_results)
             logger.debug(f'received command {rules_results}')
-            if len(data) > self.mm.size():
-                self.mm.resize(len(data))
-                self.mm.seek(0)
-                self.mm.write(data)
-                logger.debug('mmap write done')
-            else:
-                self.mm.seek(0)
-                self.mm.write(data)
-                logger.debug('mmap write done')
-            command['name'] = data_length
-            command['cmd'] = 'name'
-            logger.debug(f'data: {command}')
-            return pickle.dumps(command)
+
+            self.__write_mmap(data)
+
+            logger.debug(f'data length: {data_length}, tempfile: {self.tempfile}')
+            return self.__response_data(
+                command='rules',
+                argparse='name',
+                data_length=data_length,
+                data=self.tempfile
+            )
 
         if command.get('delete'):
             # 删除rule
@@ -160,13 +193,13 @@ class ManagerMmap:
                     i += '.'
                 rules_results.append(self.rulesearch.delete(i))
             logger.debug(f'received command {rules_results}')
-            command['cmd'] = 'delete'
-            command['data'] = rules_results
-            logger.debug(f'command {command}')
-            return pickle.dumps(command)
+            return self.__response_data(
+                command='rules',
+                argparse='delete',
+                data=rules_results
+            )
 
     def cache(self, command: dict):
-        from dnslib import DNSLabel
         logger.debug(f'received command {command}')
 
         match command.get('cmd'):
@@ -192,35 +225,33 @@ class ManagerMmap:
                                 if isinstance(y, list) and len(y) > 0:
                                     for x in y:
                                         datalist.add(str(x))
-                data_length, data = self.__send_data(datalist)
+                data_length, data = self.__data_serialization(datalist)
 
-                if len(data) > self.mm.size():
-                    # self.mm = self.__createmmap(len(data))
-                    self.mm.resize(len(data))
-                    self.mm.seek(0)
-                    self.mm.write(data)
-                    logger.debug('mmap write done')
-                else:
-                    self.mm.seek(0)
-                    self.mm.write(data)
-                    logger.debug('mmap write done')
-                logger.debug(f'data length: {data_length}')
-                return data_length
+                self.__write_mmap(data)
+
+                logger.debug(f'data length: {data_length}, tempfile: {self.tempfile}')
+                return self.__response_data(
+                    command='cache',
+                    argparse='show',
+                    data_length=data_length,
+                    data=self.tempfile
+                    )
 
             case 'delete':
                 # 删除非通配符域名
+                # todo BUG: 删除CNAME
                 logger.debug(f'delete command: {command}')
                 delete_qnames = command.get('qname')
                 for i in delete_qnames:
                     delete_qname = DNSLabel(i)
                     list(map(lambda x: self.new_cache.deldata(delete_qname, x), self.new_cache.search_cache.keys()))
-                data_length, data = self.__send_data(True)
-                self.mm.seek(0)
-                self.mm.write(data)
-                logger.debug('mmap write done')
+                data_length, data = self.__data_serialization(True)
                 logger.debug(f'data length: {data_length} data: {data}')
-                return data_length
 
+                return self.__response_data(
+                    data_length=0,
+                    data=data
+                    )
 
     def history(self, command: dict) -> bytes:
         """用于域名对应的rule查询或修改
@@ -234,18 +265,13 @@ class ManagerMmap:
         logger.debug(f'received command {command}')
 
         if command.get('all'):
-            data_length, data = self.__send_data(share_objects.history)
-            if len(data) > self.mm.size():
-                self.mm.resize(len(data))
-                self.mm.seek(0)
-                self.mm.write(data)
-                logger.debug('mmap write done')
-            else:
-                self.mm.seek(0)
-                self.mm.write(data)
-                logger.debug('mmap write done')
+            data_length, data = self.__data_serialization(share_objects.history)
+            self.__write_mmap(data)
             logger.debug(f'data length: {data_length}')
-            return data_length
+            return self.__response_data(
+                data_length=data_length,
+                data=self.tempfile
+                )
 
 commandmmap = ManagerMmap()
 
