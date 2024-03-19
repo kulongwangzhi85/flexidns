@@ -16,7 +16,6 @@ from signal import signal, SIGPIPE, SIG_DFL
 from prettytable import PrettyTable
 
 from .tomlconfigure import configs
-from .dnscache import lrucacheout
 
 signal(SIGPIPE, SIG_DFL)
 
@@ -70,7 +69,7 @@ class CacheOperate:
         length, mm = recv_data.get('data_length'), recv_data.get('data')
         mmdata = mm.read(length) if length > 0 else recv_data.get('data')
         if mmdata:
-            data = pickle.loads(base64.b64decode(mmdata)) if isinstance(mmdata, bytes) else mmdata
+            data = pickle.loads(mmdata) if isinstance(mmdata, bytes) else mmdata
             match recv_data['argparse']:
                 case 'show':
                     # 显示规则名
@@ -123,51 +122,45 @@ class CacheOperate:
     def cache(self, args):
         message = pickle.dumps(args)
         recv_data = self.__data_recv(message)
-        length, mm = recv_data.get('data_length'), recv_data.get('data')
-        if length > 0:
-            mmdata = mm.read(length)
-        else:
-            mmdata = mm
+        mm = recv_data.get('data')
 
-        try:
-            mmdata_bytes = pickle.loads(base64.b64decode(mmdata))
-        except UnpicklingError as e:
-            mmdata = b''
-            print('error:', e, file=stderr, flush=True)
-        if mmdata_bytes is True:
-            return
+        mmdata_bytes = CacheOperate.unloads(mm)
+        for i in mmdata_bytes:
+            if isinstance(i, set):
+                for s in i:
+                    print(s)
+            if isinstance(i, dict):
+                for x in i.values():
+                    for s in x.values():
 
-        if type(mmdata_bytes) is set:
-            for i in mmdata_bytes:
-                print(i)
-        elif type(mmdata_bytes) is lrucacheout:
-            for data in mmdata_bytes.search_cache.values():
-                for i in data:
-                    for s in i:
-                        for x in s.values():
-                            if isinstance(x, int):
-                                continue
-                            if len(x) > 0:
-                                for xx in x:
-                                    print(xx)
-                            else:
-                                continue
+                        if isinstance(s, int):
+                            continue
+                        if len(s) > 0:
+                            for xx in s:
+                                print(xx)
+                        else:
+                            continue
+
+    @staticmethod
+    def unloads(fd):
+        while True:
+            try:
+                yield pickle.load(fd)
+            except EOFError:
+                break
 
     def history(self, args):
         # 用于history命令查询
 
         message = pickle.dumps(args)
         recv_data = self.__data_recv(message)
-        length, mm = recv_data.get('data_length'), recv_data.get('data')
-        mmdata = mm.read(length)
+        mm = recv_data.get('data')
 
         try:
-            mmdata_bytes = pickle.loads(base64.b64decode(mmdata))
+            mmdata_bytes = pickle.loads(mm)
         except UnpicklingError as e:
-            mmdata = b''
+            mmdata_bytes = []
             print('error:', e, file=stderr, flush=True)
-        if mmdata_bytes is True:
-            return
 
         # 显示客户端查询历史记录
         x = PrettyTable()

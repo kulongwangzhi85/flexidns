@@ -14,6 +14,7 @@ from os import path as ospath, _exit
 from time import time
 from types import MappingProxyType
 from logging import getLogger
+from typing import Any
 
 from dnslib import QTYPE, DNSRecord, QR, RR, A, AAAA, RCODE, DNSLabel
 from IPy import IP
@@ -24,6 +25,41 @@ from .dnslrucache import LRUCache
 
 logger = getLogger(__name__)
 logger = dnsidAdapter(logger, {'dnsinfo': share_objects.contextvars_dnsinfo})
+
+class bimap:
+    __slots__ = ('keys', 'values')
+
+    def __init__(self):
+        self.keys = dict()
+        self.values = dict()
+
+    def get(self, key):
+        return self.keys.get(key)
+
+    def set(self, key, value):
+        self.__setitem__(key, value)
+
+    def pop(self, key):
+        data = self.keys.pop(key, [])
+        for i in data:
+            self.values.pop(i, None)
+
+    def __getitem__(self, key):
+        return self.values.get(key)
+
+    def __setitem__(self, key, value):
+        if (data := self.keys.get(key, None)) is None:
+            self.keys[key] = [value]
+        else:
+            data.append(value)
+        self.values[value] = key
+
+    def __getstate__(self) -> object:
+        return {'keys': self.keys, 'values': self.values}
+
+    def __setstate__(self, state):
+        self.keys = state['keys']
+        self.values = state['values']
 
 class MyChainMap(ChainMap):
     """
@@ -120,11 +156,13 @@ class lrucacheout:
         'chainmap_aaaa_ttl',
         'chainmap_soa_ttl',
         'readonly_host_a_cache',
-        'readonly_host_aaaa_cache'
+        'readonly_host_aaaa_cache',
+        'cname'
     )
 
     def __init__(self, maxsize=configs.lru_maxsize):
         self.configs = configs
+        self.cname = bimap()
         self.a_cache = LRUCache(maxsize=maxsize)
         self.aaaa_cache = LRUCache(maxsize=maxsize)
         self.authority_cache = LRUCache(maxsize=maxsize)
@@ -145,7 +183,6 @@ class lrucacheout:
         self.chainmap_aaaa_cache = MyChainMap(self.aaaa_cache, self.readonly_host_aaaa_cache)
         self.chainmap_soa_cache = MyChainMap(self.authority_cache)
         self.chainmap_https_cache = MyChainMap(self.https_cache)
-
         self.chainmap_a_ttl = MyChainMap(self.cache_a_ttl, self.static_a_ttl)
         self.chainmap_aaaa_ttl = MyChainMap(self.cache_aaaa_ttl, self.static_aaaa_ttl)
         self.chainmap_soa_ttl = MyChainMap(self.cache_soa_ttl)
@@ -176,12 +213,14 @@ class lrucacheout:
         for k, v in self.search_cache.items():
             if len(v.maps[0]) > 0:
                 pickledata[k] = v.maps[0].copy()
+        pickledata['cname'] = self.cname
         return pickledata
 
     def __setstate__(self, data):
         """用于pickle load
         """
         self.__init__()
+        self.cname = data.pop('cname', bimap())
         for key, value in data.items():
             if (save_obj := self.search_cache.get(key)) is None:
                 tmp_cache = MyChainMap(LRUCache(maxsize=self.configs.lru_maxsize))
@@ -204,7 +243,7 @@ class lrucacheout:
         return
 
     def deldata(self, qname, qtype):
-        logger.debug(f'del cache dnspkg, qname {qname} qtype {qtype}')
+        logger.debug(f'delete cache qname {qname} qtype {qtype}')
         if _save_obj := self.search_cache.get(QTYPE.get(qtype)):
             _tmp_data = _save_obj.get(qname)
             if _tmp_data:
@@ -296,6 +335,11 @@ class lrucacheout:
         else:
             return self.configs.expired_reply_ttl
 
+    def set_cnamemap(self, qname, cname):
+        self.cname.set(qname, DNSLabel(str(cname)))
+
+    def get_cnamemap(self, qname):
+        return self.cname.get(qname)
 
 def loader_static_domainname(static_domainname_set: dict):
     '''
