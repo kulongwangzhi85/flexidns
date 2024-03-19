@@ -46,7 +46,7 @@ class ManagerMmap:
         return dir(self)
 
     def __data_serialization(self, data):
-        bytes_response_data = base64.b64encode(pickle.dumps(data))
+        bytes_response_data = pickle.dumps(data)
         bytes_response_length = len(bytes_response_data)
         return bytes_response_length, bytes_response_data
 
@@ -56,15 +56,18 @@ class ManagerMmap:
         os.close(self.MMAPFILE[0])
         return mm, base64.b64encode(pickle.dumps(self.MMAPFILE[1]))
 
-    def __write_mmap(self, data):
-        if len(data) > self.mm.size():
-            # self.mm = self.__create_mmap(len(data))
-            self.mm.resize(len(data))
-            self.mm.seek(0)
+    def __write_mmap(self, data, data_length=0, append=False):
+        if append:
+            self.mm.resize(data_length)
             self.mm.write(data)
         else:
             self.mm.seek(0)
-            self.mm.write(data)
+            if len(data) > self.mm.size():
+                # self.mm = self.__create_mmap(len(data))
+                self.mm.resize(len(data))
+                self.mm.write(data)
+            else:
+                self.mm.write(data)
 
     def __response_data(self, *, command=None, argparse=None, data_length=0, data=None):
         """
@@ -86,6 +89,7 @@ class ManagerMmap:
             NOTE：mmap文件路径由tempfile.mkstemp生成
 
         """
+        logger.debug(f'command: {command}, argparse: {argparse}, data_length: {data_length}, data: {data}')
         return {
             "type": command,
             "argparse": argparse,
@@ -205,7 +209,32 @@ class ManagerMmap:
         match command.get('cmd'):
             case 'show':
                 if command.get('all'):
-                    datalist = self.new_cache
+                    datalist = []
+                    data_lengths = 0
+                    self.mm.seek(0)
+                    datalist.append(self.new_cache.a_cache.copy())
+                    datalist.append(self.new_cache.aaaa_cache.copy())
+                    datalist.append(self.new_cache.authority_cache.copy())
+                    datalist.append(self.new_cache.https_cache.copy())
+                    datalist.append(self.new_cache.static_a_cache.copy())
+                    datalist.append(self.new_cache.static_aaaa_cache.copy())
+                    for i, value in self.new_cache.search_cache.items():
+                        if i == "A" or i == "AAAA" or i == "HTTPS" or i == "SOA":
+                            continue
+                        for key in value.keys():
+                            datalist.append(key.copy())
+                    for i in datalist:
+                        data_length, data = self.__data_serialization(i)
+                        data_lengths += data_length
+                        logger.debug(f'data length: {data_length}, data_lengths: {data_lengths}')
+                        self.__write_mmap(data=data, data_length=data_lengths, append=True)
+
+                    return self.__response_data(
+                            command='cache',
+                            argparse='show',
+                            data_length=data_lengths,
+                            data=self.tempfile
+                            )
                 elif command.get('qname'):
                     query_list = []
                     datalist = set()
@@ -239,18 +268,32 @@ class ManagerMmap:
 
             case 'delete':
                 # 删除非通配符域名
-                # todo BUG: 删除CNAME
                 logger.debug(f'delete command: {command}')
                 delete_qnames = command.get('qname')
+                delete_list = []
                 for i in delete_qnames:
-                    delete_qname = DNSLabel(i)
-                    list(map(lambda x: self.new_cache.deldata(delete_qname, x), self.new_cache.search_cache.keys()))
+                    qname = DNSLabel(i)
+                    if (cname := self.new_cache.get_cnamemap(qname)) is not None:
+                        delete_list.extend(cname)
+                    delete_list.append(qname)
+
+                logger.debug(f'delete list: {delete_list}')
+                for delete_qname in delete_list:
+                    self.new_cache.cname.pop(delete_qname)
+                    list(
+                        map(
+                            lambda x: self.new_cache.deldata(delete_qname, x),
+                            self.new_cache.search_cache.keys()
+                            )
+                        )
+
                 data_length, data = self.__data_serialization(True)
                 logger.debug(f'data length: {data_length} data: {data}')
+                self.__write_mmap(data)
 
                 return self.__response_data(
-                    data_length=0,
-                    data=data
+                    data_length=data_length,
+                    data=self.tempfile
                     )
 
     def history(self, command: dict) -> bytes:

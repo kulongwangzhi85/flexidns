@@ -276,6 +276,8 @@ class QueueHandler(DNSRecord):
                 if rr:
                     if rr.rtype == QTYPE.CNAME:
                         self.rulesearch.cname_map_qname(cname=rr.rdata, rule=self.rules)
+                        logger.debug(f'qname: {self.q.qname}, cname: {rr.rdata}')
+                        self.new_cache.set_cnamemap(self.q.qname, rr.rdata)
 
                     logger.debug(f'original rr ttl: {rr.ttl}')
                     if rr.ttl <= min_ttl:
