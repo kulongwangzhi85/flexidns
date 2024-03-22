@@ -98,7 +98,11 @@ async def datastream_query_tasks(dnspkg, server):
     """
     data = bytearray()
     logger.debug(f'server {server[0]} edns0 ext: {server[3]}')
-    reader, writer = await asyncio.open_connection(host=server[0], port=server[1])
+    try:
+        reader, writer = await asyncio.open_connection(host=server[0], port=server[1])
+    except OSError as e:
+        logger.error(f'Connection refused error, remote server: {server[0]}')
+        return
 
     if server[3] is not None and 'edns0' in server[3]:
         before_data = dnspkg._edns0()
@@ -243,6 +247,7 @@ async def datagram_query_tasks(dnspkg, server):
     except Exception as error:
         logger.error(f'future result error: {error}')
     else:
+        transport.close()
         return result
     finally:
         transport.close()

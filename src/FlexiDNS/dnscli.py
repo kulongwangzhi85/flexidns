@@ -16,6 +16,7 @@ from dnslib import DNSLabel
 
 from .tomlconfigure import configs
 from .tomlconfigure import share_objects
+from .dnspickle import serialize
 
 logger = getLogger(__name__)
 
@@ -25,11 +26,13 @@ class ManagerMmap:
     mmaps: key -> tempfile, value -> mmap[index]
     目标实现：
     """
-    __slots__ = ('new_cache', 'MMAPFILE', 'mm', 'tempfile', 'rulesearch',)
+    __slots__ = ('new_cache', 'rulesearch', 'MMAPFILE', 'mm', 'tempfile', 'rulesearch',)
 
     def __init__(self):
         from .dnscache import new_cache
         self.new_cache = new_cache
+        from .dnsrules_new import rulesearch
+        self.rulesearch = rulesearch
         self.MMAPFILE = configs.mmapfile
         self.mm, self.tempfile = self.__create_mmap(1024)
 
@@ -212,17 +215,9 @@ class ManagerMmap:
                     datalist = []
                     data_lengths = 0
                     self.mm.seek(0)
-                    datalist.append(self.new_cache.a_cache.copy())
-                    datalist.append(self.new_cache.aaaa_cache.copy())
-                    datalist.append(self.new_cache.authority_cache.copy())
-                    datalist.append(self.new_cache.https_cache.copy())
-                    datalist.append(self.new_cache.static_a_cache.copy())
-                    datalist.append(self.new_cache.static_aaaa_cache.copy())
-                    for i, value in self.new_cache.search_cache.items():
-                        if i == "A" or i == "AAAA" or i == "HTTPS" or i == "SOA":
-                            continue
-                        for key in value.keys():
-                            datalist.append(key.copy())
+                    for value in self.new_cache.search_cache.values():
+                        for cache in value.maps:
+                            datalist.append(cache.copy())
                     for i in datalist:
                         data_length, data = self.__data_serialization(i)
                         data_lengths += data_length
@@ -296,6 +291,24 @@ class ManagerMmap:
                     data=self.tempfile
                     )
 
+            case 'save':
+                logger.debug(f'save command: {command}')
+
+                if savefile := command.get('save'):
+                    logger.debug(f'save command: {savefile}')
+                    serialize(savefile, self.new_cache, self.rulesearch)
+
+                elif configs.cache_file:
+                    serialize(None, self.new_cache, self.rulesearch)
+
+                data_length, data = self.__data_serialization(True)
+                logger.debug(f'data length: {data_length} data: {data}')
+                self.__write_mmap(data)
+
+                return self.__response_data(
+                    data_length=data_length,
+                    data=self.tempfile
+                    )
     def history(self, command: dict) -> bytes:
         """用于域名对应的rule查询或修改
 
