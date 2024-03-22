@@ -16,10 +16,14 @@ datapool = local()
 datapool.data = {}
 
 
-def serialize(*obj):
-    from .tomlconfigure import configs
+def serialize(filename=None, *obj):
+    if filename:
+        cache_file = filename
+    else:
+        from .tomlconfigure import configs
+        cache_file = configs.cache_file
     try:
-        with open(configs.cache_file, 'wb') as f:
+        with open(cache_file, 'wb') as f:
             for i in obj:
                 obj_id = i.__class__.__name__
                 logger.debug(f'pickle serializing {obj_id}, obj {i}')

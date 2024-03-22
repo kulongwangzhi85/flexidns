@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 
-from os import getuid, _exit
+from os import getuid, _exit, getcwd, path
 from sys import stderr
 
 def start(args):
-    from FlexiDNS.dnsmain import main
-    main(args.config)
+    if path.isfile(args.config):
+        from FlexiDNS.dnsmain import main
+        main(args.config)
+    else:
+        print(f"flexidns config {args.config} file error", flush=True, file=stderr)
+        _exit(1)
 
 def stop(args):
     from FlexiDNS.dnsmain import stop_server
@@ -35,6 +39,41 @@ def caches(args):
                 'qname':args.delete_qname
             }
         })
+    elif hasattr(args, 'save'):
+        savefile = args.save
+        if savefile is None:
+            co.cache({
+                'cache':
+                {
+                    'cmd': 'save',
+                    'save': savefile
+                }
+            })
+        else:
+            if path.isdir(savefile):
+                print(f'flexidns error: {savefile} is directory', file=stderr, flush=True)
+                _exit(1)
+            filename = path.split(savefile)[1]
+            if not path.isabs(savefile):
+                match prefixpath := path.split(savefile)[0]:
+                    case '.':
+                        args.save = path.join(path.abspath(getcwd()), filename)
+                    case '~':
+                        args.save = path.join(path.expanduser(prefixpath), filename)
+                    case '$':
+                        args.save = path.join(path.expandvars(prefixpath), filename)
+                    case "":
+                        args.save = path.join(path.abspath(getcwd()), filename)
+            if path.isabs(args.save):
+                co.cache({
+                    'cache':
+                    {
+                        'cmd': 'save',
+                        'save':args.save
+                    }
+                })
+            else:
+                print(f'flexidns error: no such file or directory: {args.save}', flush=True, file=stderr)
 
 def historys(args):
     from FlexiDNS.command import CacheOperate
@@ -83,8 +122,18 @@ def parse_arguments():
 
     cache_subparser = cache_parser.add_subparsers(title='cache tools', metavar='', required=True)
 
-    cache_show = cache_subparser.add_parser('show', help='show dns caches')
+    cache_save = cache_subparser.add_parser('save', help='save dns caches persistence file')
+    cache_save.add_argument(
+        '-w',
+        '--save',
+        dest='save',
+        metavar='<file name>',
+        action='store',
+        default=None,
+        help='save cache data to specify file'
+        )
 
+    cache_show = cache_subparser.add_parser('show', help='show dns caches')
     show_me_group = cache_show.add_mutually_exclusive_group(required=True)
     show_me_group.add_argument(
         '-n',
@@ -96,6 +145,7 @@ def parse_arguments():
         action='store',
         help='show one dns domain name record'
         )
+
     show_me_group.add_argument(
         '-a',
         '--all',

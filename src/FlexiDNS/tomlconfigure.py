@@ -99,7 +99,7 @@ class Configures_Structure:
     loglevels: dict = field(default_factory=lambda: {'debug': DEBUG, 'info': INFO, 'error': ERROR,'warning': WARNING, 'critical': CRITICAL})
 
     def init(self, inittomlconfig):
-        self.mmapfile: tuple = tempfile.mkstemp(prefix=f'.{__package__.lower()}')
+        self.mmapfile: tuple = tempfile.mkstemp(prefix=f'.{__package__.lower()}_', dir='/dev/shm')
         self.logfile = inittomlconfig.logfile
         self.logerror = inittomlconfig.logerror
         self.loglevel = inittomlconfig.loglevel

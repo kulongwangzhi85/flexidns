@@ -631,14 +631,14 @@ class CommandUnixProtocol:
         self.transport.write_eof()
 
     def error_received(self, exc):
-        logger.debug(f'Error received: {exc}')
+        logger.error(f'Error received: {exc}')
 
     def eof_received(self):
         self.transport.close()
 
     def connection_lost(self, exc):
         if exc is not None:
-            logger.debug(f'asyncio Connection closed error {exc}')
+            logger.error(f'asyncio Connection closed error {exc}')
         self.transport.close()
 
 
@@ -685,7 +685,7 @@ def exit_process(signal, loop):
     stop_message.send(None)
 
     if configs.cache_persist:
-        serialize(new_cache, rulesearch)
+        serialize(None, new_cache, rulesearch)
 
     asyncio_event.set()
 

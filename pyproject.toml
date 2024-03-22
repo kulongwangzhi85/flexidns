@@ -1,12 +1,16 @@
 
 [build-system]
-requires = ["setuptools>=68.0", "wheel"]
+requires = ["setuptools>=68.0", "wheel", "gitpython"]
+# requires 是打包时的依赖，不是运行时或开发时的依赖
+# 说明：本项目使用git commit id作为版本号，因此在打包时需要使用gitpython模块，而运行时未调用，因此无需使用pip安装到环境中
 build-backend = "setuptools.build_meta"
 
 
 [project]
 name = "FlexiDNS"
 dynamic = ["version", "readme"]
+# 使用动态方式获取version
+
 authors = [{ name = "GuoCL", email = "author@example.com" }]
 description = "a dns server in python"
 license = { "text" = "GPL License" }
@@ -37,12 +41,17 @@ namespaces = false
 
 [tool.setuptools.dynamic]
 readme = { file = ["README.md"] }
-version = { attr = "FlexiDNS.__version__" }
+version = { attr = "FlexiDNS.version.version" }
 dependencies = { file = ["requirements.txt"] }
 
 [tool.setuptools.data-files]
 'bin' = ["src/flexidns"]
 'etc/flexidns' = ['src/etc/flexidns/config.toml']
+'etc/flexidns/ssl' = [
+    'src/etc/flexidns/ssl/ca.cer',
+    'src/etc/flexidns/ssl/guocl.cc.cer',
+    'src/etc/flexidns/ssl/guocl.cc.key',
+]
 'lib/systemd/system' = ['flexidns.service']
 'etc/flexidns/list' = [
     'src/etc/flexidns/list/anti-ad-domains.txt',
