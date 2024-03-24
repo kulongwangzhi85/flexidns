@@ -47,11 +47,6 @@ dependencies = { file = ["requirements.txt"] }
 [tool.setuptools.data-files]
 'bin' = ["src/flexidns"]
 'etc/flexidns' = ['src/etc/flexidns/config.toml']
-'etc/flexidns/ssl' = [
-    'src/etc/flexidns/ssl/ca.cer',
-    'src/etc/flexidns/ssl/guocl.cc.cer',
-    'src/etc/flexidns/ssl/guocl.cc.key',
-]
 'lib/systemd/system' = ['flexidns.service']
 'etc/flexidns/list' = [
     'src/etc/flexidns/list/anti-ad-domains.txt',
