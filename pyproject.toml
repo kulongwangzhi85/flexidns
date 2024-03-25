@@ -8,10 +8,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "FlexiDNS"
-dynamic = ["version", "readme"]
+dynamic = ["version", "readme", "dependencies"]
 # 使用动态方式获取version
 
-authors = [{ name = "GuoCL", email = "author@example.com" }]
+authors = [{ name = "GuoCL", email = "guochanglong85@gmail.com" }]
 description = "a dns server in python"
 license = { "text" = "GPL License" }
 requires-python = ">=3.11"
