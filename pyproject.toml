@@ -40,7 +40,7 @@ namespaces = false
 
 [tool.setuptools.dynamic]
 readme = { file = ["README.md"] }
-version = { attr = "FlexiDNS.version.version" }
+version = { attr = "get_version.version" }
 dependencies = { file = ["requirements.txt"] }
 
 [tool.setuptools.data-files]
