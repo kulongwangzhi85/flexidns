@@ -13,13 +13,12 @@ from os import path as ospath, _exit
 from logging import getLogger
 from functools import reduce
 
-from dnslib import DNSLabel
+from dnslib import DNSLabel, DNSLabelError
 from IPy import IP
 
 from .tomlconfigure import configs, share_objects
 from .dnslog import dnsidAdapter
 from .dnslrucache import LRUCache
-from .dnspickle import deserialize
 
 logger = getLogger(__name__)
 logger = dnsidAdapter(logger, {'dnsinfo': share_objects.contextvars_dnsinfo})
@@ -194,9 +193,7 @@ class RULERepository:
 
         if isinstance(static_lists := static_domainname.get('list'), list):
             # 判断配置文件中 static -> list部分使用list
-            # "list" = ["/home/guocl/Python/proj002/src/etc/pydns/list/hosts_devel"]
-            # or
-            # "list" = "/home/guocl/Python/proj002/src/etc/pydns/list/hosts_devel"
+            # "list" = ["$PATH/etc/pydns/list/hosts_devel"]
             for static_list in static_lists:
                 if ospath.exists(static_list):
                     # 处理hosts列表
@@ -211,9 +208,7 @@ class RULERepository:
                                     self.set_static_list.add(i[1].strip())
         if isinstance(static_lists := static_domainname.get('list'), str):
             # 判断配置文件中 static -> list部分使用list
-            # "list" = ["/home/guocl/Python/proj002/src/etc/pydns/list/hosts_devel"]
-            # or
-            # "list" = "/home/guocl/Python/proj002/src/etc/pydns/list/hosts_devel"
+            # "list" = "$PATH/etc/pydns/list/hosts_devel"
             if ospath.exists(static_lists):
                 # 处理hosts列表
                 with open(static_lists, 'r') as fd_hosts:
@@ -228,18 +223,24 @@ class RULERepository:
         if static_domainnames_v4 := static_domainname.get('domainname_v4'):
             for c in static_domainnames_v4:
                 c = c.strip().lower().rstrip('\n')
-                # 判断空行与注释行
                 i = tuple(c.rstrip('\n').lower().split())
                 self.set_static_list.add(i[0].strip())
         if static_domainnames_v6 := static_domainname.get('domainname_v6'):
             for c in static_domainnames_v6:
                 c = c.strip().lower().rstrip('\n')
-                # 判断空行与注释行
                 i = tuple(c.rstrip('\n').lower().split())
                 self.set_static_list.add(i[0].strip())
 
+        _dnslabel = set()
+        for name in self.set_static_list:
+            try:
+                _dnslabel.add(str(DNSLabel(name)).removesuffix('.'))
+            except DNSLabelError:
+                logger.error(f'invalid static domain name: {name}, please check static lists')
+                continue
+
         self.daemon_write(
-            domainname_list=self.set_static_list,
+            domainname_list=_dnslabel,
             rulename=self.static_rule,
             cache_object=self.repositories['upstreams-checkpoint']
         )
@@ -388,8 +389,8 @@ class RULESearch(RULERepository):
         'configs',
     )
 
-    def __new__(cls):
-        if not cls.__instance:
+    def __new__(cls, *args, **kwargs):
+        if not hasattr(cls, '__instance'):
             cls.__instance = super(RULESearch, cls).__new__(cls)
         return cls.__instance
 
@@ -954,6 +955,7 @@ def module_init():
     global rulesearch, iprepostitory
 
     if configs.cache_persist and ospath.exists(configs.cache_file):
+        from .dnspickle import deserialize
         rulesearch = deserialize(RULESearch.__name__)
         if rulesearch is None:
             logger.debug('pickle data none or failed')

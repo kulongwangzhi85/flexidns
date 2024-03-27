@@ -57,8 +57,8 @@ class QueueHandler(DNSRecord):
 
     __slots__ = (
         'header', 'questions', 'rr', 'auth', 'ar', 'response_header', 'rcode', '_ar', 'code_state',
-        'configs', 'sockfd', 'question_packet', 'sock', 'client', 'upserver', 'rules',
-        'OPTv4', 'OPTv6', 'OPTCOOKIE', 'rulesearch', 'new_cache', 'cachedata', 'cookie'
+        'configs', 'sockfd', 'question_packet', 'sock', 'client', 'upserver', 'rules', 'ipset_rule',
+        'OPTv4', 'OPTv6', 'OPTCOOKIE', 'rulesearch', 'new_cache', 'cachedata', 'cookie', 'ipc_mmap',
     )
 
     def __getattr__(self, name):
@@ -95,13 +95,11 @@ class QueueHandler(DNSRecord):
                 # 当请求域名无缓存时，也就是第一次请求解析时，在none_cache_method方法中调用该属性
                 setattr(self, 'ipset_rule', self.rulesearch.search(str(self.q.qname), repositorie='ip-sets-checkpoint'))
                 return getattr(self, name)
-            case 'ipc_mmap':
-                setattr(self, 'ipc_mmap', ipc_mmap)
-                return getattr(self, name)
 
     def __init__(self, header=None, questions=None, rr=None, auth=None, ar=None):
         self.new_cache = new_cache
         self.rulesearch = rulesearch
+        self.ipc_mmap = ipc_mmap
         self.configs = configs
         self.upserver = None
         self.sock = None
