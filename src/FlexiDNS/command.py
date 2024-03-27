@@ -147,6 +147,9 @@ class CacheOperate:
             if isinstance(i, list):
                 for x in i:
                     for s in x.values():
+                        if type(s) == int:
+                            # 缓存中有保存rcode记录
+                            continue
                         for xx in s:
                             print(
                                 f'{xx.rname.idna():^30} {xx.ttl:^10} {CLASS.get(xx.rclass)} {QTYPE.get(xx.rtype):^10} {xx.rdata}')
@@ -155,6 +158,7 @@ class CacheOperate:
                     for s in x.values():
 
                         if isinstance(s, int):
+                            # 缓存中有保存rcode记录
                             continue
                         for xx in s:
                             print(
