@@ -49,7 +49,7 @@ class ManagerMmap:
         return dir(self)
 
     def __data_serialization(self, data):
-        bytes_response_data = pickle.dumps(data)
+        bytes_response_data = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
         bytes_response_length = len(bytes_response_data)
         return bytes_response_length, bytes_response_data
 
@@ -196,8 +196,6 @@ class ManagerMmap:
             # 删除rule
             rules_results = []
             for i in command['delete']:
-                if not i.endswith('.'):
-                    i += '.'
                 rules_results.append(self.rulesearch.delete(i))
             logger.debug(f'received command {rules_results}')
             return self.__response_data(
@@ -232,34 +230,33 @@ class ManagerMmap:
                             )
                 elif command.get('qname'):
                     query_list = []
-                    datalist = set()
                     for i in command.get('qname'):
-                        query_list.append(DNSLabel(i))
+                        query_list.append(i)
+                        query_list.extend(
+                            result if isinstance(result := self.new_cache.get_cnamemap(i), set) else []
+                            )
+                    logger.debug(f'query list: {query_list}') 
 
                     for domain_name in query_list:
                         datalist_queryname = []
-                        query_type = self.new_cache.search_cache.keys()
-                        for k in query_type:
-                            data = self.new_cache.getdata(domain_name, k)
+                        query_types = self.new_cache.search_cache.keys()
+                        for qtype in query_types:
+                            data = self.new_cache.getdata(DNSLabel(domain_name), qtype)
                             if data:
                                 datalist_queryname.append(data)
+                    logger.debug(f'data: {datalist_queryname}')
 
-                        for i in datalist_queryname:
-                            for k, y in i.items():
-                                if isinstance(y, list) and len(y) > 0:
-                                    for x in y:
-                                        datalist.add(str(x))
-                data_length, data = self.__data_serialization(datalist)
+                    data_length, data = self.__data_serialization(datalist_queryname)
 
-                self.__write_mmap(data)
+                    self.__write_mmap(data)
 
-                logger.debug(f'data length: {data_length}, tempfile: {self.tempfile}')
-                return self.__response_data(
-                    command='cache',
-                    argparse='show',
-                    data_length=data_length,
-                    data=self.tempfile
-                    )
+                    logger.debug(f'data length: {data_length}, tempfile: {self.tempfile}')
+                    return self.__response_data(
+                        command='cache',
+                        argparse='show',
+                        data_length=data_length,
+                        data=self.tempfile
+                        )
 
             case 'delete':
                 # 删除非通配符域名

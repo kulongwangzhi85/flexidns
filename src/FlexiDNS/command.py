@@ -14,6 +14,7 @@ from sys import stderr
 from signal import signal, SIGPIPE, SIG_DFL
 
 from prettytable import PrettyTable
+from dnslib import DNSLabel, DNSLabelError, CLASS, QTYPE
 
 from .tomlconfigure import configs
 
@@ -60,10 +61,17 @@ class CacheOperate:
 
     def rules(self, args):
         # 用于rules命令查询
+        if qnames := args.get('rules').get('delete'):
+            __qnames = []
+            for qname in qnames:
+                try:
+                    __qnames.append(str(DNSLabel(qname)))
+                except (DNSLabelError, UnicodeError) as e:
+                    print(f'invalid domain name: {qname}', flush=True, file=stderr)
+                    os._exit(1)
 
-        if self._verify_args(args) is False:
-            print("invalid domain name!", flush=True, file=stderr)
-            os._exit(1)
+            qnames.clear()
+            qnames.extend(__qnames)
         message = pickle.dumps(args)
         recv_data = self.__data_recv(message)
         length, mm = recv_data.get('data_length'), recv_data.get('data')
@@ -120,26 +128,37 @@ class CacheOperate:
             print('get data error')
 
     def cache(self, args):
+        if qnames := args.get('cache').get('qname'):
+            __qnames = []
+            for qname in qnames:
+                try:
+                    __qnames.append(str(DNSLabel(qname)))
+                except (DNSLabelError, UnicodeError) as e:
+                    print(f'invalid domain name: {qname}', flush=True, file=stderr)
+                    os._exit(1)
+            qnames.clear()
+            qnames.extend(__qnames)
         message = pickle.dumps(args)
         recv_data = self.__data_recv(message)
         mm = recv_data.get('data')
 
         mmdata_bytes = CacheOperate.unloads(mm)
         for i in mmdata_bytes:
-            if isinstance(i, set):
-                for s in i:
-                    print(s)
+            if isinstance(i, list):
+                for x in i:
+                    for s in x.values():
+                        for xx in s:
+                            print(
+                                f'{xx.rname.idna():^30} {xx.ttl:^10} {CLASS.get(xx.rclass)} {QTYPE.get(xx.rtype):^10} {xx.rdata}')
             if isinstance(i, dict):
                 for x in i.values():
                     for s in x.values():
 
                         if isinstance(s, int):
                             continue
-                        if len(s) > 0:
-                            for xx in s:
-                                print(xx)
-                        else:
-                            continue
+                        for xx in s:
+                            print(
+                                f'{xx.rname.idna():^30} {xx.ttl:^10} {CLASS.get(xx.rclass)} {QTYPE.get(xx.rtype):^10} {xx.rdata}')
 
     @staticmethod
     def unloads(fd):

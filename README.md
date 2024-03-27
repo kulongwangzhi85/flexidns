@@ -2,9 +2,6 @@
 
 **本项目主要用于学习Python开发，学习Python语法，以及算法**
 
-**NOTE**: 已知问题
-1. 缓存未做缓存击穿处理(不影响正常使用, 影响压测)
-
 ## 一、实现目标
 1. 多组DNS上游服务器
 多个上游dns服务器组成查询组，单个分组内的多个上游dns服务器，并发查询，即使其中某个DNS服务器查询失败，也不会影响查询。
@@ -22,6 +19,7 @@
 使用SOA记录来响应特定记录的查询
 8. 支持tls, doq协议
 9. 使用命令行查询缓存报告
+10. 支持idna（国际化dns）
 
 以上为已经实现
 ---
@@ -146,6 +144,13 @@ sudo systemctl stop flexidns.service
 或
 sudo flexidns stop
 ```
+
+## 使用
+### idna域名使用
+
+> 同普通域名一样配置
+
+![idna](https://github.com/kulongwangzhi85/flexidns/blob/main/docs/images/idna.png)
 
 ## 四、详细配置
 

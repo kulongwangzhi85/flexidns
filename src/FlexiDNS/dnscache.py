@@ -16,7 +16,7 @@ from types import MappingProxyType
 from logging import getLogger
 from typing import Any
 
-from dnslib import QTYPE, DNSRecord, QR, RR, A, AAAA, RCODE, DNSLabel
+from dnslib import QTYPE, DNSRecord, QR, RR, A, AAAA, RCODE, DNSLabel, DNSLabelError
 from IPy import IP
 
 from .dnslog import dnsidAdapter
@@ -34,7 +34,7 @@ class bimap:
         self.values = dict()
 
     def get(self, key):
-        return self.keys.get(key)
+        return self.keys.get(DNSLabel(key))
 
     def set(self, key, value):
         self.__setitem__(key, value)
@@ -49,17 +49,32 @@ class bimap:
 
     def __setitem__(self, key, value):
         if (data := self.keys.get(key, None)) is None:
-            self.keys[key] = [value]
+            self.keys[key] = {value}
         else:
-            data.append(value)
+            data.add(value)
         self.values[value] = key
 
     def __getstate__(self) -> object:
-        return {'keys': self.keys, 'values': self.values}
+        return {'keys': self.keys.copy(), 'values': self.values.copy()}
 
     def __setstate__(self, state):
-        self.keys = state['keys']
-        self.values = state['values']
+        import copy
+        setattr(self, 'keys', dict())
+        setattr(self, 'values', dict())
+        for k, v in state['keys'].items():
+            if isinstance(v, list):
+                _tmp_set = set()
+                for name in v:
+                    _tmp_set.add(str(name))
+                self.keys[k] = copy.deepcopy(_tmp_set)
+                _tmp_set.clear()
+            else:
+                self.keys[k] = v
+        for k, v in state['values'].items():
+            self.values[k] = v
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}({self.keys!r}, {self.values!r})'
 
 class MyChainMap(ChainMap):
     """
@@ -159,6 +174,11 @@ class lrucacheout:
         'readonly_host_aaaa_cache',
         'cname'
     )
+
+    def __new__(cls, *args, **kwargs):
+        if not hasattr(cls, '__instance'):
+            cls.__instance = super(lrucacheout, cls).__new__(cls)
+        return cls.__instance
 
     def __init__(self, maxsize=configs.lru_maxsize):
         self.configs = configs
@@ -336,7 +356,7 @@ class lrucacheout:
             return self.configs.expired_reply_ttl
 
     def set_cnamemap(self, qname, cname):
-        self.cname.set(qname, DNSLabel(str(cname)))
+        self.cname.set(qname, str(cname))
 
     def get_cnamemap(self, qname):
         return self.cname.get(qname)
@@ -443,12 +463,12 @@ def loader_static_domainname(static_domainname_set: dict):
 
     if static_domainnames_v4 := static_domainname_set.get('domainname_v4'):
         for k, v in static_domainnames_v4.items():
-            c = k.strip().lower().rstrip('\n')
-            write_static_list_v4.append({c: v})
+            c = str(DNSLabel(k.strip().lower().rstrip('\n')))
+            write_static_list_v4.append({c.removesuffix('.'): v})
     if static_domainnames_v6 := static_domainname_set.get('domainname_v6'):
         for k, v in static_domainnames_v6.items():
-            c = k.strip().lower().rstrip('\n')
-            write_static_list_v6.append({c: v})
+            c = str(DNSLabel(k.strip().lower().rstrip('\n')))
+            write_static_list_v6.append({c.removesuffix('.'): v})
 
     logger.debug(
         f'static domainname set: {write_static_list_v4}, v6 domainname set: {write_static_list_v6}')

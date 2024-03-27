@@ -86,7 +86,7 @@ logsize = 3                            # 单位M
 "list" = "hosts"
 # ro 
 # "list" = ["/path/etc/flexidns/list/hosts"]
-"domainname_v4" = { "new.example.org" = "192.168.3.3", "cloud.example.org" = "192.168.3.30" }
+"domainname_v4" = { "new.example.org" = "192.168.3.3", "cloud.example.org" = "192.168.3.30", "版本控制.dns服务器" = "192.168.2.32" }
 "domainname_v6" = { "cloud.example.org" = "2408:xxxx:xxxx:xxxx::1" }
 
 [ip-set]
