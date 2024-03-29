@@ -78,11 +78,11 @@ class MyLevelFilterNoneError(Filter):
 
 
 def loggerconfigurer():
-    from .tomlconfigure import configs
+    from .tomlconfigure import configs, share_objects
     loglevel = configs.loglevel
     logfile = configs.logfile
     logerror = configs.logerror
-    loglevels = configs.loglevels
+    loglevels = share_objects.LOGLEVELS
     network_log_server = configs.network_log_server
 
     root = getLogger()

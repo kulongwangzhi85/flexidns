@@ -147,6 +147,8 @@ class lrucacheout:
     """
     __slots__ = (
         'configs',
+        'lru_maxsize',
+        'static_rule',
         'a_cache',
         'aaaa_cache',
         'authority_cache',
@@ -180,8 +182,10 @@ class lrucacheout:
             cls.__instance = super(lrucacheout, cls).__new__(cls)
         return cls.__instance
 
-    def __init__(self, maxsize=configs.lru_maxsize):
+    def __init__(self, maxsize=share_objects.LRU_MAXSIZE):
         self.configs = configs
+        self.lru_maxsize = share_objects.LRU_MAXSIZE
+        self.static_rule = share_objects.STATIC_RULE
         self.cname = bimap()
         self.a_cache = LRUCache(maxsize=maxsize)
         self.aaaa_cache = LRUCache(maxsize=maxsize)
@@ -243,7 +247,7 @@ class lrucacheout:
         self.cname = data.pop('cname', bimap())
         for key, value in data.items():
             if (save_obj := self.search_cache.get(key)) is None:
-                tmp_cache = MyChainMap(LRUCache(maxsize=self.configs.lru_maxsize))
+                tmp_cache = MyChainMap(LRUCache(maxsize=self.lru_maxsize))
                 tmp_cache.add_many(value)
                 save_obj = self.search_cache.fromkeys((str(key), ), tmp_cache)
                 self.search_cache.update(save_obj)
@@ -276,7 +280,7 @@ class lrucacheout:
 
         if (_save_obj := self.search_cache.get(QTYPE.get(qtype))) is None:
             logger.debug(f'dnsrecord cache get: {_save_obj}')
-            _save_obj = self.search_cache.fromkeys((QTYPE.get(qtype), ), MyChainMap(LRUCache(maxsize=self.configs.lru_maxsize)))
+            _save_obj = self.search_cache.fromkeys((QTYPE.get(qtype), ), MyChainMap(LRUCache(maxsize=self.lru_maxsize)))
             self.search_cache.update(_save_obj)
 
         if _tmp_data := _save_obj.get(qname):
@@ -311,7 +315,7 @@ class lrucacheout:
         '''
         通过args方法传递，设置ttl为静态域名，还是动态域名
         '''
-        if self.configs.static_rule in args:
+        if self.static_rule in args:
             match qtype:
                 case "A":
                     self.static_a_ttl.update({qname: int(time()) + ttl})
@@ -337,7 +341,7 @@ class lrucacheout:
         return
 
     def getttl(self, qname, qtype, *args):
-        if self.configs.static_rule in args:
+        if self.static_rule in args:
             return self.configs.ttl_max
 
         if _ttl_obj := self.cache_ttl.get(QTYPE.get(qtype)):
@@ -361,119 +365,70 @@ class lrucacheout:
     def get_cnamemap(self, qname):
         return self.cname.get(qname)
 
+def write_to_cache(domainname, ips):
+    _tmp_data = {}
+    _tmp_data_6 = {}
+
+    for ip in ips:
+        try:
+            ip_object = IP(ip)
+        except:
+            continue
+        if ip_object.version() == 4:
+            _hostdns = _tmp_data.get(domainname)
+            if _hostdns:
+                _hostdns.add_answer(
+                    RR(domainname, ttl=configs.ttl_max, rtype=QTYPE.A, rdata=A(ip)))
+            else:
+                q_host = DNSRecord.question(domainname)
+                _hostdns = q_host.reply()
+                _hostdns.add_answer(
+                    RR(domainname, ttl=configs.ttl_max, rtype=QTYPE.A, rdata=A(ip)))
+                _tmp_data.update({domainname: _hostdns})
+        if ip_object.version() == 6:
+            _hostdns = _tmp_data_6.get(domainname)
+            if _hostdns:
+                _hostdns.add_answer(
+                    RR(domainname, ttl=configs.ttl_max, rtype=QTYPE.AAAA, rdata=AAAA(ip)))
+            else:
+                q_host = DNSRecord.question(domainname, qtype="AAAA")
+                _hostdns = q_host.reply()
+                _hostdns.add_answer(
+                    RR(domainname, ttl=configs.ttl_max, rtype=QTYPE.AAAA, rdata=AAAA(ip)))
+                _tmp_data_6.update({domainname: _hostdns})
+    if len(_tmp_data.values()) > 0:
+        for v in _tmp_data.values():
+            new_cache.set_static_data(v)
+            new_cache.setttl(v.q.qname, 'A', configs.ttl_max, share_objects.STATIC_RULE)
+
+        if len(_tmp_data_6.values()) > 0:
+            for v in _tmp_data_6.values():
+                new_cache.set_static_data_v6(v)
+                new_cache.setttl(v.q.qname, 'AAAA', configs.ttl_max, share_objects.STATIC_RULE)
+
 def loader_static_domainname(static_domainname_set: dict):
     '''
     加载static_domainname_set集合到缓存，生成解析支持
     args:
         static_domainname_set:
         {
-            'list': [
-                '/path/static_domainname.txt'
-            ],
-            'domainname_v4': {
-                'new.example.org': '192.168.3.3',
-                'cloud.example.org':'192.168.3.30'
+            4: {
+                'new.example.org': ['192.168.3.3'],
+                'cloud.example.org':['192.168.3.30']
             },
-            'domainname_v6': {
-                'cloud.example.org':'2408:8248:480:31b8::1'
+            6: {
+                'cloud.example.org':['2408:8248:480:31b8::1]'
             }
         }
-
-    list文件格式：
-    <str:ipaddress> <str:domain>
     '''
-    write_static_list_v4 = []
-    write_static_list_v6 = []
 
-    def write_to_cache(data: dict):
-        _tmp_data = {}
-        _tmp_data_6 = {}
+    if static_domainnames_v4 := static_domainname_set.get(4):
+        logger.debug(f'static domainname v4: {static_domainnames_v4}')
+        [write_to_cache(k, v) for k, v in static_domainnames_v4.items()]
+    if static_domainnames_v6 := static_domainname_set.get(6):
+        logger.debug(f'static domainname v6: {static_domainnames_v6}')
+        [write_to_cache(k, v) for k, v in static_domainnames_v6.items()]
 
-        for domainname, ip in data.items():
-            try:
-                ip_object = IP(ip)
-            except:
-                continue
-            if ip_object.version() == 4:
-                _hostdns = _tmp_data.get(domainname)
-                if _hostdns:
-                    _hostdns.add_answer(
-                        RR(domainname, ttl=configs.ttl_max, rtype=QTYPE.A, rdata=A(ip)))
-                else:
-                    q_host = DNSRecord.question(domainname)
-                    _hostdns = q_host.reply()
-                    _hostdns.add_answer(
-                        RR(domainname, ttl=configs.ttl_max, rtype=QTYPE.A, rdata=A(ip)))
-                    _tmp_data.update({domainname: _hostdns})
-            if ip_object.version() == 6:
-                _hostdns = _tmp_data_6.get(domainname)
-                if _hostdns:
-                    _hostdns.add_answer(
-                        RR(domainname, ttl=configs.ttl_max, rtype=QTYPE.AAAA, rdata=AAAA(ip)))
-                else:
-                    q_host = DNSRecord.question(domainname, qtype="AAAA")
-                    _hostdns = q_host.reply()
-                    _hostdns.add_answer(
-                        RR(domainname, ttl=configs.ttl_max, rtype=QTYPE.AAAA, rdata=AAAA(ip)))
-                    _tmp_data_6.update({domainname: _hostdns})
-        if len(_tmp_data.values()) > 0:
-            for v in _tmp_data.values():
-                new_cache.set_static_data(v)
-                new_cache.setttl(
-                    v.q.qname, 'A', configs.ttl_max, configs.static_rule)
-
-        if len(_tmp_data_6.values()) > 0:
-            for v in _tmp_data_6.values():
-                new_cache.set_static_data_v6(v)
-                new_cache.setttl(v.q.qname, 'AAAA',
-                                 configs.ttl_max, configs.static_rule)
-
-    if isinstance(static_lists := static_domainname_set.get('list'), list):
-        for static_list in static_lists:
-            if ospath.exists(static_list):
-                with open(static_list, 'r') as fd:
-                    for c in fd:
-                        c = c.strip().lower().rstrip('\n')
-                        if len(c) > 0 and not c.startswith('#'):
-                            i = tuple(c.rstrip('\n').lower().split())
-                            try:
-                                ip_object = IP(i[0])
-                            except:
-                                continue
-                            if ip_object.version() == 4:
-                                write_static_list_v4.append({i[1]: i[0]})
-                            if ip_object.version() == 6:
-                                write_static_list_v6.append({i[1]: i[0]})
-
-    if isinstance(static_lists := static_domainname_set.get('list'), str):
-        if ospath.exists(static_lists):
-            with open(static_lists, 'r') as fd:
-                for c in fd:
-                    c = c.strip().lower().rstrip('\n')
-                    if len(c) > 0 and not c.startswith('#'):
-                        i = tuple(c.rstrip('\n').lower().split())
-                        try:
-                            ip_object = IP(i[0])
-                        except:
-                            continue
-                        if ip_object.version() == 4:
-                            write_static_list_v4.append({i[1]: i[0]})
-                        if ip_object.version() == 6:
-                            write_static_list_v6.append({i[1]: i[0]})
-
-    if static_domainnames_v4 := static_domainname_set.get('domainname_v4'):
-        for k, v in static_domainnames_v4.items():
-            c = str(DNSLabel(k.strip().lower().rstrip('\n')))
-            write_static_list_v4.append({c.removesuffix('.'): v})
-    if static_domainnames_v6 := static_domainname_set.get('domainname_v6'):
-        for k, v in static_domainnames_v6.items():
-            c = str(DNSLabel(k.strip().lower().rstrip('\n')))
-            write_static_list_v6.append({c.removesuffix('.'): v})
-
-    logger.debug(
-        f'static domainname set: {write_static_list_v4}, v6 domainname set: {write_static_list_v6}')
-    list(map(write_to_cache, write_static_list_v4))
-    list(map(write_to_cache, write_static_list_v6))
 
 new_cache = None
 
