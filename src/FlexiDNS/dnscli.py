@@ -14,8 +14,7 @@ from logging import getLogger
 
 from dnslib import DNSLabel
 
-from .tomlconfigure import configs
-from .tomlconfigure import share_objects
+from .tomlconfigure import configs, share_objects
 from .dnspickle import serialize
 
 logger = getLogger(__name__)
@@ -33,7 +32,7 @@ class ManagerMmap:
         self.new_cache = new_cache
         from .dnsrules_new import rulesearch
         self.rulesearch = rulesearch
-        self.MMAPFILE = configs.mmapfile
+        self.MMAPFILE = share_objects.mmapfile
         self.mm, self.tempfile = self.__create_mmap(1024)
 
     def __getattr__(self, name):
@@ -177,7 +176,7 @@ class ManagerMmap:
                     i += '.'
                 searchresutls = self.rulesearch.search(i, repositorie='upstreams-checkpoint')
                 rules_results.append(
-                    (i, 'static-rule' if searchresutls == configs.static_rule else searchresutls))
+                    (i, 'static-rule' if searchresutls == share_objects.STATIC_RULE else searchresutls))
 
             data_length, data = self.__data_serialization(rules_results)
             logger.debug(f'received command {rules_results}')
@@ -230,6 +229,7 @@ class ManagerMmap:
                             )
                 elif command.get('qname'):
                     query_list = []
+                    datalist_queryname = []
                     for i in command.get('qname'):
                         query_list.append(i)
                         query_list.extend(
@@ -238,12 +238,12 @@ class ManagerMmap:
                     logger.debug(f'query list: {query_list}') 
 
                     for domain_name in query_list:
-                        datalist_queryname = []
                         query_types = self.new_cache.search_cache.keys()
                         for qtype in query_types:
+                            logger.debug(f'search qname {domain_name} qtype: {qtype}')
                             data = self.new_cache.getdata(DNSLabel(domain_name), qtype)
                             if data:
-                                datalist_queryname.append(data)
+                                datalist_queryname.extend(data.values())
                     logger.debug(f'data: {datalist_queryname}')
 
                     data_length, data = self.__data_serialization(datalist_queryname)

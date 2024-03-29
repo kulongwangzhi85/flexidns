@@ -79,8 +79,8 @@ class RULERepository:
 
     def __init__(self):
         self.domainname_set = configs.domainname_set
-        self.default_rule = configs.default_rule
-        self.static_rule = configs.static_rule
+        self.default_rule = share_objects.DEFAULT_RULE
+        self.static_rule = share_objects.STATIC_RULE
         self.set_usage = configs.set_usage[0]
 
         normalpriority_dataclass = {}
@@ -191,45 +191,12 @@ class RULERepository:
         self.set_static_list = set()
         # 获取配置文件中静态域名集
 
-        if isinstance(static_lists := static_domainname.get('list'), list):
-            # 判断配置文件中 static -> list部分使用list
-            # "list" = ["$PATH/etc/pydns/list/hosts_devel"]
-            for static_list in static_lists:
-                if ospath.exists(static_list):
-                    # 处理hosts列表
-                    with open(static_list, 'r') as fd_hosts:
-                        for c in fd_hosts:
-                            c = c.strip().lower().rstrip('\n')
-                            if len(c) > 0 and not c.startswith('#'):
-                                # 判断空行与注释行
-                                i = tuple(c.rstrip('\n').lower().split())
-                                if len(i) > 1:
-                                    # 判断格式错误
-                                    self.set_static_list.add(i[1].strip())
-        if isinstance(static_lists := static_domainname.get('list'), str):
-            # 判断配置文件中 static -> list部分使用list
-            # "list" = "$PATH/etc/pydns/list/hosts_devel"
-            if ospath.exists(static_lists):
-                # 处理hosts列表
-                with open(static_lists, 'r') as fd_hosts:
-                    for c in fd_hosts:
-                        c = c.strip().lower().rstrip('\n')
-                        if len(c) > 0 and not c.startswith('#'):
-                            # 判断空行与注释行
-                            i = tuple(c.rstrip('\n').lower().split())
-                            if len(i) > 1:
-                                # 判断格式错误
-                                self.set_static_list.add(i[1].strip())
-        if static_domainnames_v4 := static_domainname.get('domainname_v4'):
+        if static_domainnames_v4 := static_domainname.get(4):
             for c in static_domainnames_v4:
-                c = c.strip().lower().rstrip('\n')
-                i = tuple(c.rstrip('\n').lower().split())
-                self.set_static_list.add(i[0].strip())
-        if static_domainnames_v6 := static_domainname.get('domainname_v6'):
+                self.set_static_list.add(c)
+        if static_domainnames_v6 := static_domainname.get(6):
             for c in static_domainnames_v6:
-                c = c.strip().lower().rstrip('\n')
-                i = tuple(c.rstrip('\n').lower().split())
-                self.set_static_list.add(i[0].strip())
+                self.set_static_list.add(c)
 
         _dnslabel = set()
         for name in self.set_static_list:
@@ -403,7 +370,7 @@ class RULESearch(RULERepository):
         # 用于保存cname与qname关系
         # NOTE：如果将用户自定义rule存放与rulesfull，会因为lru算法将其删除
 
-        self.rulesfull = LRUCache(maxsize=self.configs.lru_maxsize)
+        self.rulesfull = LRUCache(maxsize=share_objects.LRU_MAXSIZE)
         # rulesfull: LRUCache({domain: rule1}, ...)
         # 用于存放非通配符域名规则，该字典优先于ruleswildcard
 
@@ -430,9 +397,9 @@ class RULESearch(RULERepository):
         self.upstream_cont = 0
 
         self.resultlist = []
-        self.default_rule = self.configs.default_rule
+        self.default_rule = share_objects.DEFAULT_RULE
         # 用于所有rules缓存中的key，为减少key的碰撞冲突，这里使用在tomlconfigre.py中随机字符串
-        self.static_rule = self.configs.static_rule
+        self.static_rule = share_objects.STATIC_RULE
         # 用于所有rulesstatic静态规则缓存中的key，为减少key的碰撞冲突，这里使用在tomlconfigre.py中随机字符串
         # 获取配置文件中的所有域名集
 
@@ -951,7 +918,7 @@ rulesearch = None
 iprepostitory = None
 
 def module_init():
-    logger.debug(f'default rule mapping to string: {configs.default_rule}')
+    logger.debug(f'default rule mapping to string: {share_objects.DEFAULT_RULE}')
     global rulesearch, iprepostitory
 
     if configs.cache_persist and ospath.exists(configs.cache_file):

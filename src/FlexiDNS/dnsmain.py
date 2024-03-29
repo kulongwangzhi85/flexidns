@@ -13,7 +13,7 @@ import stat
 from logging import ERROR
 from threading import local, Thread
 
-from .tomlconfigure import configs
+from .tomlconfigure import configs, Default_Configures, share_objects
 
 local_school = local()
 
@@ -38,11 +38,11 @@ def async_thread(server):
 
 
 def signal_exit_server(signum, frame):
-    from .tomlconfigure import configs
-    if os.path.exists(configs.sockfile):
-        os.remove(configs.sockfile)
-    if os.path.exists(configs.mmapfile[1]):
-        os.remove(configs.mmapfile[1])
+    from .tomlconfigure import share_objects
+    if os.path.exists(share_objects.SOCKFILE):
+        os.remove(share_objects.SOCKFILE)
+    if os.path.exists(share_objects.mmapfile[1]):
+        os.remove(share_objects.mmapfile[1])
     if local_school.start_server.is_alive():
         local_school.start_server.join()
         local_school.start_server.close()
@@ -95,7 +95,7 @@ def main(configfile):
     os.setpgrp()
 
     PID = os.getpid()
-    if write_pid_file(PID, configs.pidfile) is False:
+    if write_pid_file(PID, share_objects.PIDFILE) is False:
         os._exit(1)
 
     from .dnslog import loggerconfigurer
@@ -114,7 +114,7 @@ def main(configfile):
         os.dup2(f.fileno(), sys.stdin.fileno())
     with open(configs.logfile, 'a+') as f:
         os.dup2(f.fileno(), sys.stdout.fileno())
-    if configs.loglevels.get(configs.loglevel) < ERROR:
+    if share_objects.LOGLEVELS.get(configs.loglevel) < ERROR:
         with open(configs.logerror, 'a+') as f:
             os.dup2(f.fileno(), sys.stderr.fileno())
     else:
@@ -130,7 +130,7 @@ def main(configfile):
     for i in (local_school.start_server, local_school.start_ttlout_server):
         i.join()
 
-    os.remove(configs.pidfile)
+    os.remove(share_objects.PIDFILE)
     logger.info('Shutdown dns server')
     local_school.queue_listener.stop()
 
@@ -140,7 +140,7 @@ def stop_server():
     并执行清理操作
     """
     try:
-        with open(configs.pidfile, 'r') as f:
+        with open(share_objects.PIDFILE, 'r') as f:
             try:
                 PGID = os.getpgid(int(f.read()))
             except OSError:

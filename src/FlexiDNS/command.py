@@ -16,15 +16,15 @@ from signal import signal, SIGPIPE, SIG_DFL
 from prettytable import PrettyTable
 from dnslib import DNSLabel, DNSLabelError, CLASS, QTYPE
 
-from .tomlconfigure import configs
+from .tomlconfigure import share_objects
 
 signal(SIGPIPE, SIG_DFL)
 
 
 class CacheOperate:
     def __init__(self):
-        if os.path.exists(configs.sockfile):
-            self.socket_file = configs.sockfile
+        if os.path.exists(share_objects.SOCKFILE):
+            self.socket_file = share_objects.SOCKFILE
         else:
             outerr_message = "Server is not running, please use command 'systemctl start flexidns' or 'flexidns start --config /path/etc/flexidns/config.toml'"
             print(outerr_message, flush=True, file=stderr)
@@ -146,13 +146,12 @@ class CacheOperate:
         for i in mmdata_bytes:
             if isinstance(i, list):
                 for x in i:
-                    for s in x.values():
-                        if type(s) == int:
-                            # 缓存中有保存rcode记录
-                            continue
-                        for xx in s:
-                            print(
-                                f'{xx.rname.idna():^30} {xx.ttl:^10} {CLASS.get(xx.rclass)} {QTYPE.get(xx.rtype):^10} {xx.rdata}')
+                    if type(x) == int:
+                        # 缓存中有保存rcode记录
+                        continue
+                    for xx in x:
+                        print(
+                            f'{xx.rname.idna():^30} {xx.ttl:^10} {CLASS.get(xx.rclass)} {QTYPE.get(xx.rtype):^10} {xx.rdata}')
             if isinstance(i, dict):
                 for x in i.values():
                     for s in x.values():

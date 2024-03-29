@@ -497,11 +497,11 @@ class QueueHandler(DNSRecord):
             asyncio.create_task(response_dns_package(self))
             return
 
-        elif self.rules == configs.static_rule:
+        elif self.rules == share_objects.STATIC_RULE:
             # 这个用于阻止相应的static_cache表的静态域名列表，当请求A记录时，会同时请求AAAA记录
             # 以及处理hosts类似静态记录的处理
 
-            logger.debug(f'hostname: {configs.static_rule}')
+            logger.debug(f'hostname: {share_objects.STATIC_RULE}')
             header.set_qr(QR.RESPONSE)
             header.set_ra(1)
             header.set_aa(1)
@@ -752,7 +752,7 @@ async def start_tasks():
     ttl_timeout_response_recv = share_objects.ttl_timeout_response_recv
     loop.add_reader(ttl_timeout_response_recv,
                     lambda: ttlout_update_cache(ttl_timeout_response_recv))
-    socket_file = configs.sockfile
+    socket_file = share_objects.SOCKFILE
     if os.path.exists(socket_file):
         os.remove(socket_file)
     unixsrv = await loop.create_unix_server(lambda: CommandUnixProtocol(), path=socket_file)
