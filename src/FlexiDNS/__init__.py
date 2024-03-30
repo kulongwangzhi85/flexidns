@@ -4,7 +4,7 @@
 from importlib import metadata
 
 PACKAGE_NAME = __package__.split('.')[1] if len(__package__.split('.')) > 1 else __package__
-VERSION = "1.3.0.dev2"
+VERSION = "1.3.0.dev4"
 
 try:
     __version__ = metadata.version(PACKAGE_NAME)
