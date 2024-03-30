@@ -139,7 +139,7 @@ class ManagerMmap:
             return self.__response_data(
                 command='rules',
                 argparse='show',
-                data=list(configs.rulesjson.keys())
+                data=list(configs.domainname_set.keys())
             )
 
         if command.get('count'):

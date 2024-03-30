@@ -44,6 +44,7 @@ class Share_Objects_Structure:
             'warning': WARNING,
             'critical': CRITICAL
             }
+        self.LOGDATEFMT = '%m-%d %H:%M:%S'
 
         self.BLACKLIST_MNAME = 'a.gtld-servers.net.'
         self.BLACKLIST_RNAME = 'nstld.verisign-grs.com'
@@ -136,9 +137,9 @@ class Default_Configures:
     BLACKLIST_RCODE = "success"
     IPSET = {}
     RULESJSON = {}
-    TLS_CERT = ""
-    TLS_CERT_KEY = ""
-    TLS_CERT_CA: str = ""
+    TLS_CERT = None
+    TLS_CERT_KEY = None
+    TLS_CERT_CA = None
     NAMESERVER = ""
     SERVER = []
 
@@ -151,13 +152,13 @@ class Configures_Structure:
         self.loglevel = inittomlconfig.loglevel
         self.logfile_size = inittomlconfig.logsize * 1024 * 1024
         self.logfile_backupcount = inittomlconfig.logcounts
+        self.logdatefmt = share_objects.LOGDATEFMT
         self.nameserver = inittomlconfig.nameserver
         self.dnsservers = inittomlconfig.dnsservers
         """
         dnsservers:
             {'default': [('223.5.5.5', 53, 'udp', 'edns0'), (...), (...)], 'cn': [...], 'proxy': [...]}
         """
-        self.rulesjson = inittomlconfig.rulesjson
         self.bool_fakeip = inittomlconfig.bool_fakeip
         self.fakeiplist = inittomlconfig.fakeiplist
         self.fakeip_match = inittomlconfig.fakeip_match
@@ -222,36 +223,6 @@ class Configures_Structure:
         self.basedir = inittomlconfig.basedir
         self.network_log_server = inittomlconfig.network_log_server 
 
-        self.rulesjson.update({share_objects.DEFAULT_RULE: self.default_upstream_rule})
-        """
-        rulesjson:
-            {
-                'ad': {
-                    'list': ['/path/anti-ad-domains.txt'],
-                    'domainname': []
-                },
-                'direct': {
-                    'list': ['...', ],
-                    'domainname': [
-                        'ipv4.icanhazip.com', '...'
-                    ]
-                },
-                'cn': {
-                    'list': ['...', ],
-                    'domainname': []
-                },
-                'cloudflare': {
-                    'list': [],
-                    'domainname': []
-                },
-                'proxy': {
-                    'list': ['...', ],
-                    'domainname': []
-                },
-                'bdab97ef9ac7a87f5fb77789': 'default'
-            }
-        """
-
 
 class Toml_Parse:
     # toml配置文件解析
@@ -275,9 +246,9 @@ class Toml_Parse:
             self.cache_parse()
             self.servers_parse()
             self.ip_set_parse()
-            self.domainname_set_parse()
             self.static_parse()
             self.upstreams_parse()
+            self.domainname_set_parse()
             self.fakeip_parse()
             self.blacklist_parse()
             self.fallback_parse()
@@ -493,7 +464,6 @@ class Toml_Parse:
 
     def domainname_set_parse(self):
         self.domainname_set_options = self.config_data.get('domain-set', Default_Configures.DOMAINSET)
-        self.rulesjson = self.domainname_set_options
 
         # domain-set设置基于basedir join方法到完整的绝对路径
         for _set_lists in self.domainname_set_options.values():
@@ -510,6 +480,7 @@ class Toml_Parse:
             elif isinstance(file_lists, str):
                 _set_lists.update(
                     {'list': path.join(self.basedir, file_lists)})
+        self.domainname_set_options.update({share_objects.DEFAULT_RULE: self.default_upstream_rule })
 
     def ip_set_parse(self):
         self.ipset = {}
@@ -540,8 +511,25 @@ class Toml_Parse:
 
     def tls_parse(self):
         self.tls_cert = self.gloabl_options.get('tls_cert')
+        if self.tls_cert is None or not path.exists(self.tls_cert):
+            self.tls_cert = None
+            self.tls_cert_key = None
+            self.tls_cert_ca = None
+            return None
+
         self.tls_cert_key = self.gloabl_options.get('tls_cert_key')
+        if self.tls_cert_key is None or not path.exists(self.tls_cert_key):
+            self.tls_cert = None
+            self.tls_cert_key = None
+            self.tls_cert_ca = None
+            return None
+
         self.tls_cert_ca = self.gloabl_options.get('tls_cert_ca')
+        if self.tls_cert_ca is None or not path.exists(self.tls_cert_ca):
+            self.tls_cert = None
+            self.tls_cert_key = None
+            self.tls_cert_ca = None
+            return None
 
     def fakeip_parse(self):
         self.fakednsserver = {}
@@ -552,7 +540,7 @@ class Toml_Parse:
 
         for k, v in self.dnsservers.items():
             for i in v:
-                if 'fakeip' in i:
+                if share_objects.FAKEIP_NAME in i:
                     self.bool_fakeip = True
                     self.fakeip_match = k
                     self.fakeip_upserver = i
@@ -568,7 +556,7 @@ class Toml_Parse:
         for k, v in _fallback_options.items():
             if v.get('exclude'):
                 self.fallback_exclude = set(v.get('exclude').split(','))
-        for i in self.rulesjson.keys():
+        for i in self.domainname_set_options.keys():
             self._domain_set_keys.add(i)
 
     def upstreams_parse(self):

@@ -433,8 +433,8 @@ class RULESearch(RULERepository):
         for k, v in data.items():
             if k == 'self.rulestabs':
                 for rulescache_key, rulescache_value in v.items():
-                    if rulescache_value not in configs.rulesjson:
-                        # 检查缓存中rule值与配置文件中的rule名是否存在
+                    if rulescache_value not in configs.domainname_set:
+                        # 由于配置修改，重启时检查缓存中rule值与配置文件中的rule名是否存在
                         # 不存在则使用默认规则
                         rulescache_value = configs.default_upstream_rule
                     self.rulesfull.add_many({rulescache_key: rulescache_value})
@@ -505,8 +505,9 @@ class RULESearch(RULERepository):
         """
         域名规则修改, 并删除对应的缓存
         """
+        # todo TAG: 删除cname操作
         enter_domainname = domainname
-        if rule in self.configs.rulesjson:
+        if rule in self.configs.domainname_set:
             if domainname.startswith('*') or domainname.startswith('.'):
                 domainname = domainname.strip().rstrip('.')
                 domainname = '.'.join(domainname.strip().split('.')[1:])
@@ -523,7 +524,6 @@ class RULESearch(RULERepository):
             if cacheobj:
                 del self.searchcache[domainname]
             self.searchcache.maps[0].update({domainname: rule})
-            logger.debug(f'searchcache: {self.searchcache.maps[0]}, get: {self.searchcache.get(domainname)}')
 
             query_name = DNSLabel(domainname)
             logger.debug(f'rule in modify cache rule: {query_name}, rule {rule}')
