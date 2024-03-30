@@ -3,27 +3,46 @@
 **本项目主要用于学习Python开发，学习Python语法，以及算法**
 
 ## 一、实现目标
+
 1. 多组DNS上游服务器
+
 多个上游dns服务器组成查询组，单个分组内的多个上游dns服务器，并发查询，即使其中某个DNS服务器查询失败，也不会影响查询。
+
 2. 缓存加速
+
 缓存采用LRUCache（最近最少使用）策略进行缓存，当再次查询时，可加快dns查询记录, 可持久化cache缓存（使用pickle模块）
 3. 域名分流(测试条目数量二十多万，域名列表路径:src/etc/flexidns/list/)
+
 根据域名集合，查询不同上游dns服务器。查询耗时几微妙
+
 4. fallback后备计划(测试IP为中国ipv4、ipv6*地址段*，条目数量一万多，域名列表路径:src/etc/flexidns/list/)
+
 根据IP集合列表，将上游dns服务器返回的IP地址进行匹配，视环境决定使用另一组上游dns服务器查询，通常是加密隧道。查询耗时几微妙
+
 5. 多协议，多端口支持（asyncio实现）
+
 目前完成udp，tcp协议支持，以及每种端口下多个端口同时使用
+
 6. 支持IPv4、IPv6双栈
+
 支持IPv4、IPv6网络，支持查询IPv4、IPv6的记录查询。可禁止IPv6的AAAA记录查询。
+
 7. 可拦截特定类型的查询记录
+
 使用SOA记录来响应特定记录的查询
+
 8. 支持tls, doq协议
+
 9. 使用命令行查询缓存报告
+
 10. 支持idna（国际化dns）
 
 以上为已经实现
+
 ---
+
 ## 二、未来计划
+
 1. 根据学习Python情况，修改代码使其更规范
 2. 支持https协议
 3. 根据性能情况，实现正则匹配域名
@@ -32,31 +51,83 @@
 6. 使用命令参数进行在线配置(部分实现)
 
 ## 三、使用方法
+
 ### 安装
+
 #### 直接启动
+
 1. 克隆或下载
+
 ```shell
 git clone https://github.com/kulongwangzhi85/flexidns.git
 ```
+
 2. 安装依赖
+
 ```shell
 cd flexidns
 pip3 install -r requirements.txt
 ```
+
 3. 启动服务
+
 ```shell
 touch config_none.toml #空文件
 sudo ./src/flexidns start --config ./config_none.toml
 或
 sudo ./src/flexidns start --config ./src/etc/flexidns/config.toml
 ```
+
 4. 停止服务
+
 ```shell
 sudo ./src/flexidns stop
 ```
 
+### 打包wheel格式
+
+1. 克隆或下载
+
+```shell
+git clone https://github.com/kulongwangzhi85/flexidns.git
+```
+
+2. 安装依赖
+
+```shell
+cd flexidns
+pip3 install build
+python3.12 -m build -w
+```
+
+3. 安装whl包到服务器
+
+```shell
+pip install FlexiDNS-1.3.0.dev2+g3ac6c4b-py3-none-any.whl
+```
+
+4. 启动服务
+
+```shell
+touch config_none.toml #空配置文件
+sudo flexidns start --config ./src/etc/flexidns/config.toml
+或
+sudo systemctl daemon-reload
+sudo systemctl start flexidns.service
+```
+
+5. 停止服务
+
+```shell
+sudo systemctl stop flexidns.service
+或
+sudo flexidns stop
+```
+
 **NOTE**: 使用空配置文件时，会使用以下默认值启动服务
-##### 默认值
+
+#### 默认值
+
 ```python
     CACHE_FILE =  f'/var/log/{__package__.lower()}.cache'
     TIME_OUT = 3.0
@@ -98,54 +169,17 @@ sudo ./src/flexidns stop
 
     ... ...
 ```
-#### 打包安装
-1. 克隆或下载
-```shell
-git clone https://github.com/kulongwangzhi85/flexidns.git
-```
-2. 安装依赖
-```shell
-cd flexidns
-pip3 install -r requirements.txt
-```
-3. build
-```shell
-python3 -m build -w -o ./ ./
-```
-> 第一个'./'为打包文件到当前目录。
-> 第二个'./'项目根路径（注意不是源码目录）
-4. 安装打包好的whl文件
-```shell
-pip3 install FlexiDNS-1.1.0.dev\*-py3-none-any.whl
-```
-> 该方法安装的文件，会根据`sys.prefix`的路径进行安装
 
-*sys.prefix*路径
+### `sys.prefix`路径
+
 * 如果使用系统软件包管理工具进行安装的python，sys.prefix为`/usr/`
 * 使用源码编译的python，则为编译prefix参数指定, 如果未指定。大部分为`/usr/local`
 * venv环境`sys.prefix`路径为venv路径（虚拟环境下可不打包），直接启动服务
 * 配置文件路径:`<prefix>/etc/flexidns/`
 * 主命令文件路径: `<prefix>/bin/`
 
-5. 启动服务
-```shell
-touch config_none.toml #空配置文件
-sudo flexidns start --config ./config_none.toml
-或
-sudo flexidns start --config ./src/etc/flexidns/config.toml
-或
-sudo systemctl daemon-reload
-sudo systemctl start flexidns.service
-```
 
-6. 停止服务
-```shell
-sudo systemctl stop flexidns.service
-或
-sudo flexidns stop
-```
 
-## 使用
 ### idna域名使用
 
 > 同普通域名一样配置
