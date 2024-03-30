@@ -258,9 +258,6 @@ class RULERepository:
                     cache_object=self.repositories['ip-sets-checkpoint']
                 )
 
-
-        logger.debug(f'upstreams_list: {self.repositories['upstreams-checkpoint'].get('com').get('googleadservices')}')
-
     def daemon_write(self, domainname_list: list, rulename: str, cache_object: object):
         for i in domainname_list:
             tmp_daemon = i.split('.')
