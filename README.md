@@ -11,6 +11,7 @@
 2. 缓存加速
 
 缓存采用LRUCache（最近最少使用）策略进行缓存，当再次查询时，可加快dns查询记录, 可持久化cache缓存（使用pickle模块）
+
 3. 域名分流(测试条目数量二十多万，域名列表路径:src/etc/flexidns/list/)
 
 根据域名集合，查询不同上游dns服务器。查询耗时几微妙
@@ -54,6 +55,8 @@
 
 ### 安装
 
+**注意：使用虚拟环境，注意切换或创建虚拟环境**
+
 #### 直接启动
 
 1. 克隆或下载
@@ -92,10 +95,9 @@ sudo ./src/flexidns stop
 git clone https://github.com/kulongwangzhi85/flexidns.git
 ```
 
-2. 安装依赖
+2. 安装打包模块
 
 ```shell
-cd flexidns
 pip3 install build
 python3.12 -m build -w
 ```
