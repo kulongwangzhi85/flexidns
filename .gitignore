@@ -1,7 +1,6 @@
 .venv/*
 .venv3.12/*
 .venv312/*
-.vscode/
 ssl/
 logs/
 build/

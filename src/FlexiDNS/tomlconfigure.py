@@ -456,8 +456,22 @@ class Toml_Parse:
     def edns0_parse(self):
         # todo TAG: ipv4与ipv6
         if _edns0 := self.config_data.get('edns0'):
-            self.edns0_ipv4_address = _edns0.get('ipv4_address')
-            self.edns0_ipv6_address = _edns0.get('ipv6_address')
+            IPv4 = _edns0.get('ipv4_address')
+            IPv6 = _edns0.get('ipv6_address')
+
+            try:
+                IP(IPv4)
+            except Exception as e:
+                self.edns0_ipv4_address = None
+            else:
+                self.edns0_ipv4_address = IPv4
+
+            try:
+                IP(IPv6)
+            except Exception as e:
+                self.edns0_ipv6_address = None
+            else:
+                self.edns0_ipv6_address = IPv6
         else:
             self.edns0_ipv4_address = None
             self.edns0_ipv6_address = None
