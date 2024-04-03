@@ -6,15 +6,12 @@ import unittest
 import os
 from array import array
 
-from . import project_rootpath
-
 
 class Test_mmap(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from FlexiDNS.tomlconfigure import loader_config, share_objects
-        loader_config(os.path.join(project_rootpath, 'etc', 'flexidns', 'config_devel.toml'))
+        from FlexiDNS.tomlconfigure import share_objects
         from FlexiDNS.dnsmmap_ipc import CircularBuffer
 
         cls.dnsmmap = CircularBuffer(share_objects.ipc_mmap, share_objects.ipc_mmap_size)

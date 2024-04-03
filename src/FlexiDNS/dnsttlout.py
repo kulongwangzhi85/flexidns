@@ -29,7 +29,7 @@ async def start_tasks():
 
     ttl_timeout_recv = share_objects.ttl_timeout_recv
     ttl_timeout_response_send_fd = share_objects.ttl_timeout_response_send
-    
+
     ipc_mmap = CircularBuffer(ipc_mmap=share_objects.ipc_mmap, ipc_mmap_size=share_objects.ipc_mmap_size)
 
     while True:

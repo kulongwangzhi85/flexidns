@@ -8,14 +8,10 @@ from multiprocessing.connection import Connection
 
 from dnslib import *
 
-from . import project_rootpath
-
 
 class Test_TomlConfigure(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from FlexiDNS.tomlconfigure import loader_config
-        loader_config(os.path.join(project_rootpath, 'etc', 'flexidns', 'config_none.toml'))
         from FlexiDNS.tomlconfigure import configs, share_objects
         cls.configs = configs
         cls.share_object = share_objects
