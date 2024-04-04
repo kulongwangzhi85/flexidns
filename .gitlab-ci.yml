@@ -42,14 +42,8 @@ test_mmaps:
     tags:
       - unittest
     script: 
-      - "python tests/test_dnsmmap.py"
+      - "python3 -m unittest"
 
-test_tomlconfigs:
-    stage: test
-    tags:
-      - unittest
-    script: 
-      - "python tests/test_tomlconfigure.py"
 
 dev_build:
     stage: build
@@ -58,4 +52,5 @@ dev_build:
     variables:
       CI_DEBUG_TRACE: "false"
     script:
+      - "python3 -m pip install build"
       - "python3 -m build --wheel"
