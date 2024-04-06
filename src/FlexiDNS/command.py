@@ -30,7 +30,7 @@ class CacheOperate:
             print(outerr_message, flush=True, file=stderr)
             os._exit(1)
 
-    def __data_recv(self, message):
+    def data_recv(self, message):
         client_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         client_socket.setblocking(True)
         try:
@@ -73,7 +73,7 @@ class CacheOperate:
             qnames.clear()
             qnames.extend(__qnames)
         message = pickle.dumps(args)
-        recv_data = self.__data_recv(message)
+        recv_data = self.data_recv(message)
         length, mm = recv_data.get('data_length'), recv_data.get('data')
         mmdata = mm.read(length) if length > 0 else recv_data.get('data')
         if mmdata:
@@ -139,7 +139,7 @@ class CacheOperate:
             qnames.clear()
             qnames.extend(__qnames)
         message = pickle.dumps(args)
-        recv_data = self.__data_recv(message)
+        recv_data = self.data_recv(message)
         mm = recv_data.get('data')
 
         mmdata_bytes = CacheOperate.unloads(mm)
@@ -175,7 +175,7 @@ class CacheOperate:
         # 用于history命令查询
 
         message = pickle.dumps(args)
-        recv_data = self.__data_recv(message)
+        recv_data = self.data_recv(message)
         mm = recv_data.get('data')
 
         try:
