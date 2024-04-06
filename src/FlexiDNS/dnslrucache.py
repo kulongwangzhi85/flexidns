@@ -24,7 +24,7 @@ class LRUCache:
     maxsize: int
     cache: t.Dict[t.Hashable, ListNode]
 
-    __slots__ = ('maxsize', 'cache', 'head', 'tail') 
+    __slots__ = ('maxsize', 'cache', 'head', 'tail')
 
     def __init__(self, maxsize: int = 256):
         """
@@ -61,8 +61,7 @@ class LRUCache:
             self.set(key, value)
 
     def add_many(self, kwargs: t.Hashable):
-        for key, value in kwargs.items():
-            self.set(key, value)
+        self.set_many(kwargs)
 
     def __iter__(self):
         return iter(i.data for i in self.cache.values())
