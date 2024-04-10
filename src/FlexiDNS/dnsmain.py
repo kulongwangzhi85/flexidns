@@ -13,7 +13,7 @@ import stat
 from logging import ERROR
 from threading import local, Thread
 
-from .tomlconfigure import configs, Default_Configures, share_objects
+from .dnstoml import configs, Default_Configures, share_objects
 
 local_school = local()
 
@@ -38,7 +38,7 @@ def async_thread(server):
 
 
 def signal_exit_server(signum, frame):
-    from .tomlconfigure import share_objects
+    from .dnstoml import share_objects
     if os.path.exists(share_objects.SOCKFILE):
         os.remove(share_objects.SOCKFILE)
     if os.path.exists(share_objects.mmapfile[1]):
@@ -99,7 +99,7 @@ def main(configfile):
         os._exit(1)
 
     from .dnslog import loggerconfigurer
-    from .tomlconfigure import loader_config
+    from .dnstoml import loader_config
     from logging import getLogger
     loader_config(configfile)
 

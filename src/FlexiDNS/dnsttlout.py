@@ -15,8 +15,7 @@ from logging import getLogger
 from collections import namedtuple
 
 from .dnslog import dnsidAdapter
-from .tomlconfigure import share_objects
-from .dnsmmap_ipc import CircularBuffer
+from .dnstoml import share_objects
 
 logger = getLogger(__name__)
 
@@ -25,12 +24,12 @@ logger = dnsidAdapter(logger, {'dnsinfo': contextvars_dnsinfo})
 
 async def start_tasks():
     global logger
-    from .dnsupstream import query_create_tasklist
+    from .dnsclient import query_create_tasklist
 
     ttl_timeout_recv = share_objects.ttl_timeout_recv
     ttl_timeout_response_send_fd = share_objects.ttl_timeout_response_send
 
-    ipc_mmap = CircularBuffer(ipc_mmap=share_objects.ipc_mmap, ipc_mmap_size=share_objects.ipc_mmap_size)
+    ipc_mmap = share_objects.ipc
 
     while True:
         rece_data_amount = ttl_timeout_recv.recv()
@@ -52,18 +51,18 @@ async def start_tasks():
             if dnspkg_data is not None:
                 dnspkg.self_parse(dnspkg_data)
                 data = pickle.dumps(dnspkg)
-                send_data_amount = ipc_01_mmap.write(data)
+                send_data_amount = ipc_01.write(data)
                 logger.debug(f'send mmap data location: {send_data_amount}, length: {len(data)}')
                 send_data_amount_pickle = pickle.dumps(send_data_amount)
                 send_data_amount_struct = struct.pack('!H', len(send_data_amount_pickle)) + send_data_amount_pickle
                 write(ttl_timeout_response_send_fd, send_data_amount_struct)
         else:
-            ipc_01_mmap.mm.close()
+            ipc_01.mm.close()
             logger.debug('stop server.......')
             break
 
 def start():
-    global ipc_01_mmap
-    ipc_01_mmap = CircularBuffer(ipc_mmap=share_objects.ipc_01_mmap, ipc_mmap_size=share_objects.ipc_mmap_size)
+    global ipc_01
+    ipc_01 = share_objects.ipc_01
     logger.debug(f'start ttlout thread server')
     asyncio.run(start_tasks())

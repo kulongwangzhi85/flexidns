@@ -78,7 +78,7 @@ class MyLevelFilterNoneError(Filter):
 
 
 def loggerconfigurer():
-    from .tomlconfigure import configs, share_objects
+    from .dnstoml import configs, share_objects
     loglevel = configs.loglevel
     logfile = configs.logfile
     logerror = configs.logerror

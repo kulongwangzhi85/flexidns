@@ -49,7 +49,7 @@ def serialize(filename=None, *obj):
     if filename:
         cache_file = filename
     else:
-        from .tomlconfigure import configs
+        from .dnstoml import configs
         cache_file = configs.cache_file
     try:
         with open(cache_file, 'wb') as f:
@@ -62,7 +62,7 @@ def serialize(filename=None, *obj):
 
 
 def deserialize(obj_name=None):
-    from .tomlconfigure import configs
+    from .dnstoml import configs
     serialized_data = configs.cache_file
     logger.debug(f'pickle loading {obj_name}, datapool {datapool.data}')
     if path.exists(serialized_data):

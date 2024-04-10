@@ -3,7 +3,7 @@
 # coding: utf-8
 
 import unittest
-import os
+from unittest.mock import Mock
 from array import array
 
 
@@ -11,9 +11,10 @@ class Test_mmap(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from FlexiDNS.tomlconfigure import share_objects
-        from FlexiDNS.dnsmmap_ipc import CircularBuffer
+        from FlexiDNS.dnstoml import share_objects
+        from FlexiDNS.dnsmmap_ipc import CircularBuffer, logger
 
+        logger = Mock()
         cls.dnsmmap = CircularBuffer(share_objects.ipc_mmap, share_objects.ipc_mmap_size)
         cls.example_by_write_data = bytearray(b'1234567890abcdef')
         cls.__data_amount = None

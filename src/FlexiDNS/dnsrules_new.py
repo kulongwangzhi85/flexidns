@@ -16,7 +16,7 @@ from functools import reduce
 from dnslib import DNSLabel, DNSLabelError
 from IPy import IP
 
-from .tomlconfigure import configs, share_objects
+from .dnstoml import configs, share_objects
 from .dnslog import dnsidAdapter
 from .dnslrucache import LRUCache
 

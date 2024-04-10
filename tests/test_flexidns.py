@@ -66,7 +66,7 @@ class Test_FlexiDNS(unittest.TestCase):
             historys(args)
             history_mock.assert_has_calls([call(), call().history({'history': {'all': 'all'}})])
             # assert_has_calls() 断言调用循序，第一次call()为historys()方法实例化，第二次call()为history()方法调用
-            # 技巧：不知道列表中应该写什么时，可以使用assert_has_calls('asdf')错误值，调试时会打印出顺序
+            # 技巧：不知道列表中应该写什么时，可以使用history_mock.mock_calls
             # 注意：建议不要使用history_mock.assert_called_once_with(), 因为实例化时,就时调用一次。所以始终为正确。传入参数空值，无法验证参数
             # 注意：assert_has_calls([]),给空列表会忽略内部所有参数
 
