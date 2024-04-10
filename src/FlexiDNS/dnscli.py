@@ -14,7 +14,7 @@ from logging import getLogger
 
 from dnslib import DNSLabel
 
-from .tomlconfigure import configs, share_objects
+from .dnstoml import configs, share_objects
 from .dnspickle import serialize
 
 logger = getLogger(__name__)
@@ -318,7 +318,7 @@ class ManagerMmap:
         logger.debug(f'received command {command}')
 
         if command.get('all'):
-            data_length, data = self.__data_serialization(share_objects.history)
+            data_length, data = self.__data_serialization(share_objects.history.copy())
             self.__write_mmap(data)
             logger.debug(f'data length: {data_length}')
             return self.__response_data(

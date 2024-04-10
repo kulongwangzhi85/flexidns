@@ -16,7 +16,7 @@ from signal import signal, SIGPIPE, SIG_DFL
 from prettytable import PrettyTable
 from dnslib import DNSLabel, DNSLabelError, CLASS, QTYPE
 
-from .tomlconfigure import share_objects
+from .dnstoml import share_objects
 
 signal(SIGPIPE, SIG_DFL)
 

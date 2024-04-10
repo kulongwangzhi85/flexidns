@@ -6,7 +6,7 @@ import os
 
 sys.path.insert(0, project_rootpath := os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-from FlexiDNS.tomlconfigure import loader_config, share_objects
+from FlexiDNS.dnstoml import loader_config, share_objects
 loader_config(os.path.join(project_rootpath, 'etc', 'flexidns', 'config_none.toml'))
 
 

@@ -7,7 +7,7 @@ from unittest.mock import Mock, MagicMock
 from dnslib import *
 
 from FlexiDNS import dnscache
-from FlexiDNS.tomlconfigure import share_objects
+from FlexiDNS.dnstoml import share_objects
 
 
 class Test_DnsCache(unittest.TestCase):

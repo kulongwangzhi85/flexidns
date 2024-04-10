@@ -30,7 +30,7 @@ class CircularBuffer:
         self.locations = self.__data_location()
         next(self.locations)
 
-    def __data_location(self) -> DATA_LOCATION:
+    def __data_location(self):
         """
         循环算法
         作用： 固定mmap长度后，从data长度中算出数据的起始位置和结束位置

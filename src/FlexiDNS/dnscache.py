@@ -20,7 +20,7 @@ from dnslib import QTYPE, DNSRecord, QR, RR, A, AAAA, RCODE, DNSLabel, DNSLabelE
 from IPy import IP
 
 from .dnslog import dnsidAdapter
-from .tomlconfigure import configs, share_objects
+from .dnstoml import configs, share_objects
 from .dnslrucache import LRUCache
 
 logger = getLogger(__name__)
@@ -325,39 +325,33 @@ class lrucacheout:
         else:
             logger.debug(f'set ttl: {qname}, {ttl}, {args}')
 
-            if (_ttl_obj := self.cache_ttl.get(QTYPE.get(qtype))) is not None:
-                _tmp_ttl = _ttl_obj.get(qname)
-                logger.debug(f'set cache ttl in {_tmp_ttl}')
-                if _tmp_ttl is None:
-                    _ttl_obj.add_many({qname: int(time()) + ttl})
+            if (ttl_obj := self.cache_ttl.get(QTYPE.get(qtype))) is not None:
+                tmp_ttl = ttl_obj.get(qname)
+                logger.debug(f'set cache ttl in {tmp_ttl}')
+                if tmp_ttl is None:
+                    ttl_obj.add_many({qname: int(time()) + ttl})
                 else:
-                    _ttl_obj.set_many({qname: int(time()) + ttl})
+                    ttl_obj.set_many({qname: int(time()) + ttl})
             else:
-                _ttl_obj = self.search_cache.fromkeys((QTYPE.get(qtype), ), MyChainMap(LRUCache(maxsize=4096)))
-                _tmp_ttl = _ttl_obj.get(QTYPE.get(qtype))
-                _tmp_ttl.add_many({qname: int(time()) + ttl})
-                self.cache_ttl.update(_ttl_obj)
-                logger.debug(f'set _tmp_ttl in {_tmp_ttl}')
+                ttl_obj = self.search_cache.fromkeys((QTYPE.get(qtype), ), \
+                                                      MyChainMap(LRUCache(maxsize=share_objects.LRU_MAXSIZE)))
+                tmp_ttl = ttl_obj.get(QTYPE.get(qtype))
+                tmp_ttl.add_many({qname: int(time()) + ttl})
+                self.cache_ttl.update(ttl_obj)
+                logger.debug(f'set _tmp_ttl in {tmp_ttl}')
         return
 
     def getttl(self, qname, qtype, *args):
         if self.static_rule in args:
             return self.configs.ttl_max
 
-        if _ttl_obj := self.cache_ttl.get(QTYPE.get(qtype)):
-            _tmp_ttl = _ttl_obj.get(qname)
-            logger.debug(f'get cache ttl in timestamps: {_tmp_ttl}')
-            if _tmp_ttl is None or _tmp_ttl <= 0:
-                return self.configs.expired_reply_ttl
-            else:
-                _tmptime = _tmp_ttl - int(time())
-                logger.debug(f'get cache ttl: {_tmptime}')
-                if _tmptime >= self.configs.expired_reply_ttl:
-                    return _tmptime
-                else:
-                    return self.configs.expired_reply_ttl
-        else:
-            return self.configs.expired_reply_ttl
+        if ttl_obj := self.cache_ttl.get(QTYPE.get(qtype)):
+            tmp_ttl = ttl_obj.get(qname)
+            if tmp_ttl:
+                ttl = tmp_ttl - int(time())
+                logger.debug(f'get cache ttl in timestamps: {tmp_ttl} ttl: {ttl}')
+                return ttl
+        return None
 
     def set_cnamemap(self, qname, cname):
         self.cname.set(qname, str(cname))
@@ -401,10 +395,10 @@ def write_to_cache(domainname, ips):
             new_cache.set_static_data(v)
             new_cache.setttl(v.q.qname, 'A', configs.ttl_max, share_objects.STATIC_RULE)
 
-        if len(_tmp_data_6.values()) > 0:
-            for v in _tmp_data_6.values():
-                new_cache.set_static_data_v6(v)
-                new_cache.setttl(v.q.qname, 'AAAA', configs.ttl_max, share_objects.STATIC_RULE)
+    if len(_tmp_data_6.values()) > 0:
+        for v in _tmp_data_6.values():
+            new_cache.set_static_data_v6(v)
+            new_cache.setttl(v.q.qname, 'AAAA', configs.ttl_max, share_objects.STATIC_RULE)
 
 def loader_static_domainname(static_domainname_set: dict):
     '''

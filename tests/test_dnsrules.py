@@ -112,6 +112,43 @@ class Test_DnsRules(unittest.TestCase):
         result = self.rulesearch.modify(self.name, rule='proxy')
         self.assertEqual(result[1], 'proxy')
 
+class Test_Module_Init(unittest.TestCase):
+
+    def setUp(self) -> None:
+        logger = Mock()
+
+    def test_init_without_pickle(self):
+
+        with patch('FlexiDNS.dnsrules_new.RULESearch.__init__') as rulesearch_mock,\
+              patch('FlexiDNS.dnsrules_new.IPRepostitory.__init__') as iprepostitory_mock, \
+                patch('FlexiDNS.dnsrules_new.configs') as configs_mock:
+            configs_mock.cache_persist = False
+            configs_mock.cache_file = ''
+            rulesearch_mock.return_value = None
+            iprepostitory_mock.return_value = None
+
+            module_init()
+            rulesearch_mock.assert_called_once()
+            iprepostitory_mock.assert_called_once()
+
+    @patch('FlexiDNS.dnsrules_new.configs')
+    def test_init_with_pickle(self, configs_mock):
+        from FlexiDNS.dnspickle import deserialize
+
+        with patch('FlexiDNS.dnsrules_new.RULESearch') as rulesearch_mock,\
+              patch('FlexiDNS.dnsrules_new.IPRepostitory.__init__') as iprepostitory_mock, \
+                patch('FlexiDNS.dnspickle.deserialize') as deserialize_mock, \
+                    patch('FlexiDNS.dnsrules_new.ospath') as ospath_mock:
+
+            rulesearch_mock.__name__ = 'RULESearch'
+            ospath_mock.exists.return_value = True
+            deserialize_mock.return_value = True
+            configs_mock.cache_persist = True
+            iprepostitory_mock.return_value = None
+
+            module_init()
+            iprepostitory_mock.assert_called_once()
+            rulesearch_mock.assert_not_called()
 
 if __name__ == '__main__':
     from os import _exit

@@ -17,7 +17,7 @@ from aioquic.quic.configuration import QuicConfiguration
 from aioquic.quic.events import QuicEvent, StreamDataReceived
 
 from .dnslog import dnsidAdapter
-from .tomlconfigure import share_objects
+from .dnstoml import share_objects
 
 logger = getLogger(__name__)
 logger = dnsidAdapter(logger, {'dnsinfo': share_objects.contextvars_dnsinfo})

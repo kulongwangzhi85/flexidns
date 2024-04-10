@@ -27,6 +27,7 @@ class Share_Objects_Structure:
     # 这些对象无需用户配置
 
     def __init__(self):
+        from .dnsmmap_ipc import CircularBuffer
 
         self.FAKEIP_NAME = 'fakeip'
         self.ttl_timeout_send, self.ttl_timeout_recv = Pipe()
@@ -36,6 +37,8 @@ class Share_Objects_Structure:
         self.ipc_mmap_size: int = 4194304
         self.ipc_mmap = mmap.mmap(-1, self.ipc_mmap_size, flags=mmap.MAP_SHARED)
         self.ipc_01_mmap = mmap.mmap(-1, self.ipc_mmap_size, flags=mmap.MAP_SHARED)
+        self.ipc = CircularBuffer(ipc_mmap=self.ipc_mmap, ipc_mmap_size=self.ipc_mmap_size)
+        self.ipc_01 = CircularBuffer(ipc_mmap=self.ipc_01_mmap, ipc_mmap_size=self.ipc_mmap_size)
 
         self.LOGLEVELS = {
             'debug': DEBUG,
@@ -495,6 +498,7 @@ class Toml_Parse:
                 _set_lists.update(
                     {'list': path.join(self.basedir, file_lists)})
         self.domainname_set_options.update({share_objects.DEFAULT_RULE: self.default_upstream_rule })
+        self._domain_set_keys = set(self.domainname_set_options.keys())
 
     def ip_set_parse(self):
         self.ipset = {}
@@ -546,7 +550,6 @@ class Toml_Parse:
             return None
 
     def fakeip_parse(self):
-        self.fakednsserver = {}
         self.fakeip_match = None
         self.bool_fakeip = False
         self.fakeip_upserver = None
@@ -642,6 +645,7 @@ class Toml_Parse:
             for v in _black_list:
                 _black_set.add(v)
         self.blacklist = _black_set & self._domain_set_keys
+        # 未考虑无blacklist要删除domain_set_options中的相关key
 
     def check_ip(self, ip):
         try:
