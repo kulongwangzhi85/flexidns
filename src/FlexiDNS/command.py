@@ -17,6 +17,7 @@ from prettytable import PrettyTable
 from dnslib import DNSLabel, DNSLabelError, CLASS, QTYPE
 
 from .dnstoml import share_objects
+from .dnscache import dnsttl
 
 signal(SIGPIPE, SIG_DFL)
 
@@ -146,7 +147,7 @@ class CacheOperate:
         for i in mmdata_bytes:
             if isinstance(i, list):
                 for x in i:
-                    if type(x) == int:
+                    if type(x) == int or isinstance(x, dnsttl):
                         # 缓存中有保存rcode记录
                         continue
                     for xx in x:
@@ -156,7 +157,7 @@ class CacheOperate:
                 for x in i.values():
                     for s in x.values():
 
-                        if isinstance(s, int):
+                        if isinstance(s, int) or isinstance(s, dnsttl):
                             # 缓存中有保存rcode记录
                             continue
                         for xx in s:

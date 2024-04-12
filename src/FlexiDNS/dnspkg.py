@@ -44,6 +44,7 @@ class Dnspkg(DNSRecord):
         self.code_state = [ True, True ] # [ code8, code10 ]
         self.cookie = None
         self.rule = rule
+        self.ttl = 0
 
         contextvars_dnsinfo.set(
             {
@@ -58,12 +59,13 @@ class Dnspkg(DNSRecord):
     def __setstate__(self, state):
         self.new_cache = new_cache
         self.rulesearch = rulesearch
-        self.rules = state['rules']
+        self.rule = state['rule']
+        self.ttl = state['ttl']
         self.configs = state['configs']
         self.upserver = state['upserver']
         self.sock = None
         self.client = state['client']
-        self.cachedata = None
+        self.cachedata = state['cachedata']
         self.header = state['header']
         self.response_header = None
         self.questions = state['questions']
@@ -118,20 +120,22 @@ class Dnspkg(DNSRecord):
         return {
             'configs': self.configs,
             'upserver': self.upserver,
-            'rules': self.rules,
+            'rule': self.rule,
+            'cachedata': self.cachedata,
             'client': self.client,
             'header': self.header,
             'questions': self.questions,
             'rr': self.rr,
             'auth': self.auth,
             'ar': self.ar,
+            'ttl': self.ttl,
             '_ar': self._ar,
             'code_state': self.code_state,
             'cookie': self.cookie
         }
 
     def __str__(self) -> str:
-        return f'{self.__class__.__name__}({self.rules, self.rr, self.ar, self.auth, self.header})'
+        return f'{self.__class__.__name__}({self.rule, self.rr, self.ar, self.auth, self.header, self.ttl})'
 
     def __getattr__(self, name):
         # 延迟初始化实例属性
@@ -167,33 +171,6 @@ class Dnspkg(DNSRecord):
                 # 当请求域名无缓存时，也就是第一次请求解析时，在none_cache_method方法中调用该属性
                 setattr(self, 'ipset_rule', self.rulesearch.search(str(self.q.qname), repositorie='ip-sets-checkpoint'))
                 return getattr(self, name)
-
-    async def response_dns_package(self):
-        if (sock := self.sock) is not None:
-            client = self.client
-            self.ar.clear()
-            self.ar.extend(self._ar)
-            logger.debug(f'dnspkg ar {self.ar}')
-            data = self.pack()
-            match sock.get_extra_info('socket').type:
-                case socket.SOCK_STREAM:
-                    data_length = len(data)
-                    tcpdata = struct.pack('!H', data_length) + data
-                    try:
-                        sock.write(tcpdata)
-                    except AttributeError as error:
-                        logger.error(f'attribute error: {error}')
-                    finally:
-                        sock.close()
-                case socket.SOCK_DGRAM:
-                    sock.sendto(data, client)
-                case _:
-                    logger.error(
-                        f"response_dns_package sock is None client: {client}, data: {data}")
-            logger.debug(f"response data time")
-        else:
-            logger.error(
-                f'socket is None client: {self.client}, dnspkg: {self.q.qname}, sock {self.sock}')
 
     def update_cache(self):
         """
@@ -241,7 +218,6 @@ class Dnspkg(DNSRecord):
                 else:
                     rrttl = auth.ttl
 
-        self.new_cache.setttl(self.q.qname, self.q.qtype, rrttl)
         self.new_cache.setdata(self)
 
         if len(self.rr) == 0 and len(self.auth) == 0:
@@ -284,17 +260,12 @@ class Dnspkg(DNSRecord):
                         dnspkg.header.set_rcode(value)
 
     async def get_ttl(self):
-        self.ttl = self.new_cache.getttl(self.q.qname, self.q.qtype, self.rule)
-        if self.ttl is not None:
-            if self.ttl < 1:
-                logger.debug(f'ttl timeout, use expired reply ttl {self.configs.expired_reply_ttl}')
-                self.ttl = self.configs.expired_reply_ttl
-                await asyncio.create_task(self.none_cache_method(self, ttl_timeout_status=True))
-                self.new_cache.deldata(self.q.qname, self.q.qtype)
-        else:
-            logger.debug(f'no ttl cache data, use expired reply ttl {self.configs.expired_reply_ttl}')
+        self.ttl = self.cachedata.get('ttl', 0)()
+        if self.ttl < 1:
+            logger.debug(f'ttl timeout, use expired reply ttl {self.configs.expired_reply_ttl}')
             self.ttl = self.configs.expired_reply_ttl
             await asyncio.create_task(self.none_cache_method(self, ttl_timeout_status=True))
+            self.new_cache.deldata(self.q.qname, self.q.qtype)
 
     @staticmethod
     def header_setting(dnspkg):
@@ -333,10 +304,10 @@ class Dnspkg(DNSRecord):
             data = await asyncio.create_task(query_create_tasklist(dnspkg))
 
         if data is not None:
-            dnspkg.self_parse(data)
+            dnspkg.response_parse(data)
             dnspkg.update_cache()
 
-    def self_parse(self, packet):
+    def response_parse(self, packet):
         """将从上游返回的bytes数据中，解析后修改实例属性
         """
         buffer = DNSBuffer(packet)
@@ -352,7 +323,6 @@ class Dnspkg(DNSRecord):
                 self.auth.append(RR.parse(buffer))
             for _ in range(header.ar):
                 self.ar.append(RR.parse(buffer))
-            logger.debug(f'response ar: {self.ar}')
         except DNSError:
             raise
         except (BufferError, BimapError) as e:
@@ -431,18 +401,25 @@ class Dnspkg_Static(DNSRecord):
 
         share_objects.history.append((time.time(), client[0], self.q.qname))
 
-        self.cachedata = self.new_cache.getdata(self.q.qname, self.q.qtype)
+        self.cachedata = self.new_cache.get_static(self.q.qname, self.q.qtype)
         if self.cachedata is None:
             Dnspkg.header_setting(self)
             asyncio.create_task(Dnspkg.response_dns_package(self))
             return
 
-        self.ttl = self.new_cache.getttl(self.q.qname, self.q.qtype, self.rule)
-        Dnspkg.set_ttl(self)
+        self.set_ttl()
         Dnspkg.header_setting(self)
 
         asyncio.create_task(Dnspkg.response_dns_package(self))
         return
+
+    def set_ttl(self):
+        for key, value in self.cachedata.items():
+            match key:
+                case "rr":
+                    self.rr.extend(value)
+                case "auth":
+                    self.auth.extend(value)
 
 
 class Dnspkg_FakeIP(Dnspkg):
@@ -492,8 +469,8 @@ class Dnspkg_FakeIP(Dnspkg):
 
         self.cachedata = self.new_cache.getdata(self.q.qname, self.q.qtype)
         if self.cachedata is not None:
-            await self.get_ttl()
             logger.debug('cacheed')
+            await self.get_ttl()
             self.rr.extend(self.cachedata.get('rr'))
             self.a.ttl = self.ttl
             Dnspkg.header_setting(self)
@@ -504,8 +481,6 @@ class Dnspkg_FakeIP(Dnspkg):
         else:
             logger.debug('not cacheed')
             await asyncio.create_task(self.none_cache_method())
-            self.update_ttl()
-            self.new_cache.setdata(self)
 
             if len(self.rr) == 0 and len(self.auth) == 0:
             # 上游服务器响应内容为空时，将rcode设置为nxdomain
@@ -522,7 +497,6 @@ class Dnspkg_FakeIP(Dnspkg):
             self.a.ttl = configs.fakeip_ttl
         self.ttl = self.a.ttl
         logger.debug(f'original rr ttl: {self.a.ttl}, fakeip ttl: {self.ttl}')
-        self.new_cache.setttl(self.q.qname, self.q.qtype, self.ttl)
 
     def update_cache(self):
         """覆盖父类"""
@@ -530,18 +504,13 @@ class Dnspkg_FakeIP(Dnspkg):
         logger.debug('update cache')
 
     async def get_ttl(self):
-        self.ttl = self.new_cache.getttl(self.q.qname, self.q.qtype)
-        logger.debug(f'ttl: {self.ttl}')
-        if self.ttl is not None:
-            if self.ttl < 1:
-                self.ttl = configs.expired_reply_ttl
-                await asyncio.create_task(self.none_cache_method(ttl_timeout_status=True))
-                self.new_cache.deldata(self.q.qname, self.q.qtype)
-                logger.debug(f'ttl timeout, use expired reply ttl {configs.expired_reply_ttl}')
-        else:
-            logger.debug(f'no ttl cache data, use expired reply ttl {configs.expired_reply_ttl}')
+        self.ttl = self.cachedata.get('ttl', 0)()
+        logger.debug(f'from cache get ttl: {self.ttl}')
+        if self.ttl < 1:
             self.ttl = configs.expired_reply_ttl
             await asyncio.create_task(self.none_cache_method(ttl_timeout_status=True))
+            self.new_cache.deldata(self.q.qname, self.q.qtype)
+            logger.debug(f'ttl timeout, use expired reply ttl {configs.expired_reply_ttl}')
 
     async def none_cache_method(self, *, ttl_timeout_status=False):
         ttl_timeout_send = share_objects.ttl_timeout_send
@@ -561,7 +530,7 @@ class Dnspkg_FakeIP(Dnspkg):
             data = await asyncio.create_task(query_create_tasklist(self))
 
         if data is not None:
-            self.self_parse(data)
+            self.response_parse(data)
             self.new_cache.setdata(self)
 
 

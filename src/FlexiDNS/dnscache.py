@@ -9,10 +9,8 @@ rtype：返回dns报文类型
 设计思路：客户端请求一个不存在的域名时，并且使用qtype为A记录。由于不存在该域名，此时返回的dns报文rtype为SOA。
 """
 
-from collections import ChainMap
 from os import path as ospath, _exit
 from time import time
-from types import MappingProxyType
 from logging import getLogger
 from typing import Any
 
@@ -76,79 +74,36 @@ class bimap:
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({self.keys!r}, {self.values!r})'
 
-class MyChainMap(ChainMap):
-    """
-    由于cacheout.LRUCache类get()无法支持obj[x]方式，重載ChainMap中的get()方法
-    以及添加add_many()与set_many()方法
-    """
-    __slots__ = ('result', 'index')
 
-    def __init__(self, *maps) -> None:
-        super().__init__(*maps)
+class dnsttl:
+    __slots__ = ('data',)
+    def __init__(self, ttl=0):
+        self.data = int(time()) + ttl
 
-        self.result = list()
-        self.index = 0
+    def __repr__(self) -> str:
+        return str(self.data)
 
-    def __getitem__(self, key):
-        self.result.clear()
-        self.result.extend(filter(None, map(lambda i: i.get(key), self.maps)))
-        if len(self.result) == 0:
-            return None
-        else:
-            return self.result.pop()
-
-    def get(self, key):
-        return self.__getitem__(key)
-
-    def __delitem__(self, key):
-        for mapping in self.maps:
-            if isinstance(mapping, LRUCache):
-                mapping.delete(key)
-            if isinstance(mapping, dict):
-                mapping.pop(key, None)
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self.index < len(self.maps):
-            result = self.maps[self.index]
-            self.index += 1
-            return result
-        else:
-            self.index = 0
-            raise StopIteration
-
-    def add_many(self, data):
-        for key, value in data.items():
-            self.maps[0].add_many({key: value})
-
-    def set_many(self, data):
-        for key, value in data.items():
-            self.maps[0].set_many({key: value})
-
+    def __call__(self, *args: Any, **kwds: Any) -> int:
+        return self.data - int(time())
 
 class lrucacheout:
     """域名缓存类，使用cacheout.LRUCache类实现互联网域名lru。静态域名使用dict
     字典缓存，使用pickle.dump()方法实现序列化
 
     缓存结构：
-    ChainMap(lrucache(dns 资源记录), dict(静态记录))
+    lrucache(dns 资源记录), dict(DNS记录)
 
     lrucache结构：
-    {<DNS: Header>: [<DNS: RR]}
-    or
-    {<DNS: Header>: [<DNS: AR]}
-    or
-    {<DNS: Header>: [<DNS: AUTH]}
+    {<DNS: Header>: { rr: [RR], ar: [AR], auth: [AUTH], rcode: int, ttl: timestamp}}
 
-    search_cache: type: dict, 显式定义 chainmap_a_cache, chainmap_aaaa_cache, chainmap_https_cache, chainmap_soa_cache,常用dns请求类型
+    search_cache: type: dict, 显式定义一些常用dns请求类型, 不常用的dns类型
     在请求时，动态生成其它类型的dns缓存
     """
     __slots__ = (
         'configs',
         'lru_maxsize',
         'static_rule',
+        'cache_static',
         'a_cache',
         'aaaa_cache',
         'authority_cache',
@@ -158,23 +113,7 @@ class lrucacheout:
         'chainmap_aaaa_cache',
         'search_cache',
         'https_cache',
-        'chainmap_https_cache',
-        'chainmap_soa_cache',
-        'cachettl',
-        'fakeipttl',
-        'hoststtl',
-        'static_a_ttl',
-        'static_aaaa_ttl',
-        'cache_a_ttl',
-        'cache_aaaa_ttl',
-        'cache_ttl',
-        'cache_soa_ttl',
-        'chainmap_a_ttl',
-        'chainmap_aaaa_ttl',
-        'chainmap_soa_ttl',
-        'readonly_host_a_cache',
-        'readonly_host_aaaa_cache',
-        'cname'
+        'cname',
     )
 
     def __new__(cls, *args, **kwargs):
@@ -193,39 +132,20 @@ class lrucacheout:
         self.https_cache = LRUCache(maxsize=maxsize)
         self.static_a_cache = {}
         self.static_aaaa_cache = {}
-        self.readonly_host_a_cache = MappingProxyType(self.static_a_cache)
-        self.readonly_host_aaaa_cache = MappingProxyType(self.static_aaaa_cache)
-
-        self.static_a_ttl = {}
-        self.static_aaaa_ttl = {}
-        self.cache_a_ttl = LRUCache(maxsize=maxsize)
-        self.cache_aaaa_ttl = LRUCache(maxsize=maxsize)
-        self.cache_soa_ttl = LRUCache(maxsize=maxsize)
-        self.hoststtl = {}
-
-        self.chainmap_a_cache = MyChainMap(self.a_cache, self.readonly_host_a_cache)
-        self.chainmap_aaaa_cache = MyChainMap(self.aaaa_cache, self.readonly_host_aaaa_cache)
-        self.chainmap_soa_cache = MyChainMap(self.authority_cache)
-        self.chainmap_https_cache = MyChainMap(self.https_cache)
-        self.chainmap_a_ttl = MyChainMap(self.cache_a_ttl, self.static_a_ttl)
-        self.chainmap_aaaa_ttl = MyChainMap(self.cache_aaaa_ttl, self.static_aaaa_ttl)
-        self.chainmap_soa_ttl = MyChainMap(self.cache_soa_ttl)
 
         # dns resources recode
         self.search_cache = {
-            QTYPE.get(QTYPE.A): self.chainmap_a_cache,
-            QTYPE.get(QTYPE.AAAA): self.chainmap_aaaa_cache,
-            QTYPE.get(QTYPE.HTTPS): self.chainmap_https_cache,
-            QTYPE.get(QTYPE.SOA): self.chainmap_soa_cache
+            QTYPE.get(QTYPE.A): self.a_cache,
+            QTYPE.get(QTYPE.AAAA): self.aaaa_cache,
+            QTYPE.get(QTYPE.HTTPS): self.https_cache,
+            QTYPE.get(QTYPE.SOA): self.authority_cache
         }
 
-        # dns ttl cacheed
-        self.cache_ttl = {
-            QTYPE.get(QTYPE.A): self.chainmap_a_ttl,
-            QTYPE.get(QTYPE.AAAA): self.chainmap_aaaa_ttl,
-            QTYPE.get(QTYPE.HTTPS): self.chainmap_soa_ttl,
-            QTYPE.get(QTYPE.SOA): self.chainmap_soa_ttl
+        self.cache_static = {
+            QTYPE.get(QTYPE.A): self.static_a_cache,
+            QTYPE.get(QTYPE.AAAA): self.static_aaaa_cache,
         }
+
         # search_cache用于缓存dns报文，初始化时创建的记录类型就这三个。后续有新的记录类型则动态生成。
         # 如未自动生成新的记录缓存对象，会在请求类型时异常。
         # 缓存方法是使用qtype，而不是rtype
@@ -235,8 +155,8 @@ class lrucacheout:
         """
         pickledata = {}
         for k, v in self.search_cache.items():
-            if len(v.maps[0]) > 0:
-                pickledata[k] = v.maps[0].copy()
+            if bool(v):
+                pickledata[k] = v.copy()
         pickledata['cname'] = self.cname
         return pickledata
 
@@ -247,111 +167,78 @@ class lrucacheout:
         self.cname = data.pop('cname', bimap())
         for key, value in data.items():
             if (save_obj := self.search_cache.get(key)) is None:
-                tmp_cache = MyChainMap(LRUCache(maxsize=self.lru_maxsize))
+                tmp_cache = LRUCache(maxsize=self.lru_maxsize)
                 tmp_cache.add_many(value)
                 save_obj = self.search_cache.fromkeys((str(key), ), tmp_cache)
                 self.search_cache.update(save_obj)
             else:
                 for k, v in value.items():
-                    save_obj.maps[0].add_many({k: v})
+                    save_obj.add_many({k: v})
+
+    def get_static(self, qname, qtype):
+        if (save_obj := self.cache_static.get(QTYPE.get(qtype))):
+
+            if static_data := save_obj.get(qname):
+                logger.debug(f'get static dns record: {qname}, qtype {QTYPE.get(qtype)}')
+                return static_data
+        return None
 
     def setdata(self, dnspkg):
-        logger.debug(f'set cache {dnspkg} rcode {RCODE.get(dnspkg.response_header.get_rcode())}')
 
-        if (_save_obj := self.search_cache.get(QTYPE.get(dnspkg.q.qtype))) is not None:
-            _tmp_data = _save_obj.get(dnspkg.q.qname)
-            if _tmp_data is None:
-                _save_obj.add_many({dnspkg.q.qname: {'rr': dnspkg.rr, 'auth': dnspkg.auth, 'rcode': dnspkg.response_header.get_rcode()}})
+        if (save_obj := self.search_cache.get(QTYPE.get(dnspkg.q.qtype))) is not None:
+            logger.debug(f'set cache {dnspkg} rcode {RCODE.get(dnspkg.response_header.get_rcode())}')
+            tmp_data = save_obj.get(dnspkg.q.qname)
+            if tmp_data is None:
+                save_obj.add_many({
+                    dnspkg.q.qname: {
+                    'rr': dnspkg.rr,
+                    'auth': dnspkg.auth,
+                    'rcode': dnspkg.response_header.get_rcode(),
+                    'ttl': dnsttl(dnspkg.a.ttl)
+                    }
+                })
             else:
-                _save_obj.set_many({dnspkg.q.qname: {'rr': dnspkg.rr, 'auth': dnspkg.auth, 'rcode': dnspkg.response_header .get_rcode()}})
+                save_obj.set_many({
+                    dnspkg.q.qname: {
+                    'rr': dnspkg.rr,
+                    'auth': dnspkg.auth,
+                    'rcode': dnspkg.response_header.get_rcode(),
+                    'ttl': dnsttl(dnspkg.a.ttl)
+                    }
+                })
         return
 
     def deldata(self, qname, qtype):
-        logger.debug(f'delete cache qname {qname} qtype {qtype}')
-        if _save_obj := self.search_cache.get(QTYPE.get(qtype)):
-            _tmp_data = _save_obj.get(qname)
-            if _tmp_data:
-                del _save_obj[qname]
-                return
+        logger.debug(f'delete cache qname {qname} qtype {QTYPE.get(qtype)}')
+        if save_obj := self.search_cache.get(QTYPE.get(qtype)):
+            save_obj.delete(qname)
 
     def getdata(self, qname, qtype):
         """当未get到数据时，返回None。并fromkeys新qtype字典
         """
 
-        if (_save_obj := self.search_cache.get(QTYPE.get(qtype))) is None:
-            logger.debug(f'dnsrecord cache get: {_save_obj}')
-            _save_obj = self.search_cache.fromkeys((QTYPE.get(qtype), ), MyChainMap(LRUCache(maxsize=self.lru_maxsize)))
-            self.search_cache.update(_save_obj)
+        logger.debug(f'dnsrecord cache get: {qname} qtype {QTYPE.get(qtype)}')
+        if (save_obj := self.search_cache.get(QTYPE.get(qtype))) is None:
+            save_obj = self.search_cache.fromkeys((QTYPE.get(qtype), ), LRUCache(maxsize=self.lru_maxsize))
+            self.search_cache.update(save_obj)
 
-        if _tmp_data := _save_obj.get(qname):
-            return _tmp_data
+        if (tmp_data := save_obj.get(qname)) is not None:
+            return tmp_data
         else:
             return None
 
-    def set_static_data(self, pkg):
-        """
-        获取_hostcache为了可以让字段支持多个ip地址
-        """
+    def set_static(self, pkg):
+        logger.debug(f'setting static dns record: {pkg.q.qname}')
+        if (save_obj := self.cache_static.get(QTYPE.get(pkg.q.qtype))) is None:
+            save_obj = self.cache_static.fromkeys((QTYPE.get(pkg.q.qtype), ), dict())
+            self.cache_static.update(save_obj)
 
-        if _hostcache := self.static_a_cache.get(pkg.q.qname):
-            rr: list = _hostcache.get('rr')
+        if hostcache := save_obj.get(pkg.q.qname):
+            rr: list = hostcache.get('rr')
             rr.extend(pkg.rr)
         else:
-            self.static_a_cache.update({pkg.q.qname: {'rr': pkg.rr}})
-
-    def set_static_data_v6(self, pkg):
-        """
-        获取_hostcache为了可以让字段支持多个ip地址
-        """
-
-        if _hostcache := self.static_aaaa_cache.get(pkg.q.qname):
-            rr: list = _hostcache.get('rr')
-            rr.extend(pkg.rr)
-        else:
-            self.static_aaaa_cache.update({pkg.q.qname: {'rr': pkg.rr}})
+            save_obj.update({pkg.q.qname: {'rr': pkg.rr}})
         return
-
-    def setttl(self, qname, qtype, ttl, *args):
-        '''
-        通过args方法传递，设置ttl为静态域名，还是动态域名
-        '''
-        if self.static_rule in args:
-            match qtype:
-                case "A":
-                    self.static_a_ttl.update({qname: int(time()) + ttl})
-                case "AAAA":
-                    logger.debug(f'set ttl: {qname}, {ttl}, {args}')
-                    self.static_aaaa_ttl.update({qname: int(time()) + ttl})
-        else:
-            logger.debug(f'set ttl: {qname}, {ttl}, {args}')
-
-            if (ttl_obj := self.cache_ttl.get(QTYPE.get(qtype))) is not None:
-                tmp_ttl = ttl_obj.get(qname)
-                logger.debug(f'set cache ttl in {tmp_ttl}')
-                if tmp_ttl is None:
-                    ttl_obj.add_many({qname: int(time()) + ttl})
-                else:
-                    ttl_obj.set_many({qname: int(time()) + ttl})
-            else:
-                ttl_obj = self.search_cache.fromkeys((QTYPE.get(qtype), ), \
-                                                      MyChainMap(LRUCache(maxsize=share_objects.LRU_MAXSIZE)))
-                tmp_ttl = ttl_obj.get(QTYPE.get(qtype))
-                tmp_ttl.add_many({qname: int(time()) + ttl})
-                self.cache_ttl.update(ttl_obj)
-                logger.debug(f'set _tmp_ttl in {tmp_ttl}')
-        return
-
-    def getttl(self, qname, qtype, *args):
-        if self.static_rule in args:
-            return self.configs.ttl_max
-
-        if ttl_obj := self.cache_ttl.get(QTYPE.get(qtype)):
-            tmp_ttl = ttl_obj.get(qname)
-            if tmp_ttl:
-                ttl = tmp_ttl - int(time())
-                logger.debug(f'get cache ttl in timestamps: {tmp_ttl} ttl: {ttl}')
-                return ttl
-        return None
 
     def set_cnamemap(self, qname, cname):
         self.cname.set(qname, str(cname))
@@ -392,13 +279,11 @@ def write_to_cache(domainname, ips):
                 _tmp_data_6.update({domainname: _hostdns})
     if len(_tmp_data.values()) > 0:
         for v in _tmp_data.values():
-            new_cache.set_static_data(v)
-            new_cache.setttl(v.q.qname, 'A', configs.ttl_max, share_objects.STATIC_RULE)
+            new_cache.set_static(v)
 
     if len(_tmp_data_6.values()) > 0:
         for v in _tmp_data_6.values():
-            new_cache.set_static_data_v6(v)
-            new_cache.setttl(v.q.qname, 'AAAA', configs.ttl_max, share_objects.STATIC_RULE)
+            new_cache.set_static(v)
 
 def loader_static_domainname(static_domainname_set: dict):
     '''
