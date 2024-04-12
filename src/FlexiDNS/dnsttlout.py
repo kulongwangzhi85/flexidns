@@ -12,7 +12,6 @@ import struct
 
 from os import write
 from logging import getLogger
-from collections import namedtuple
 
 from .dnslog import dnsidAdapter
 from .dnstoml import share_objects
@@ -49,7 +48,7 @@ async def start_tasks():
 
             dnspkg_data = await asyncio.create_task(query_create_tasklist(dnspkg))
             if dnspkg_data is not None:
-                dnspkg.self_parse(dnspkg_data)
+                dnspkg.response_parse(dnspkg_data)
                 data = pickle.dumps(dnspkg)
                 send_data_amount = ipc_01.write(data)
                 logger.debug(f'send mmap data location: {send_data_amount}, length: {len(data)}')

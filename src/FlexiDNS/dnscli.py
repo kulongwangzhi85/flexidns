@@ -212,9 +212,10 @@ class ManagerMmap:
                     datalist = []
                     data_lengths = 0
                     self.mm.seek(0)
+                    for value in self.new_cache.cache_static.values():
+                        datalist.append(value.copy())
                     for value in self.new_cache.search_cache.values():
-                        for cache in value.maps:
-                            datalist.append(cache.copy())
+                        datalist.append(value.copy())
                     for i in datalist:
                         data_length, data = self.__data_serialization(i)
                         data_lengths += data_length
@@ -244,6 +245,9 @@ class ManagerMmap:
                             data = self.new_cache.getdata(DNSLabel(domain_name), qtype)
                             if data:
                                 datalist_queryname.extend(data.values())
+                            static_data = self.new_cache.get_static(DNSLabel(domain_name), qtype)
+                            if static_data:
+                                datalist_queryname.extend(static_data.values())
                     logger.debug(f'data: {datalist_queryname}')
 
                     data_length, data = self.__data_serialization(datalist_queryname)
