@@ -3,25 +3,32 @@
 
 import sys
 import os
+from unittest.mock import patch
 
 sys.path.insert(0, project_rootpath := os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
 from FlexiDNS.dnstoml import loader_config, share_objects
-loader_config(os.path.join(project_rootpath, 'etc', 'flexidns', 'config_none.toml'))
 
+@patch('os.open')
+@patch('FlexiDNS.dnstoml.mkfifo')
+def init(mkfifo, open):
+    loader_config(os.path.join(project_rootpath, 'etc', 'flexidns', 'config_none.toml'))
 
-if os.path.exists(share_objects.PIDFILE):
+def check():
+    if os.path.exists(share_objects.PIDFILE):
+        with open(share_objects.PIDFILE, 'r') as f:
+            try:
+                PGID = os.getpgid(int(f.read()))
+            except (OSError, ProcessLookupError, ValueError):
+                if os.path.exists(share_objects.SOCKFILE):
+                    os.remove(share_objects.SOCKFILE)
+                os.remove(share_objects.PIDFILE)
+    else:
+        if os.path.exists(share_objects.SOCKFILE):
+            os.remove(share_objects.SOCKFILE)
 
-    with open(share_objects.PIDFILE, 'r') as f:
-        try:
-            PGID = os.getpgid(int(f.read()))
-        except (OSError, ProcessLookupError, ValueError):
-            if os.path.exists(share_objects.SOCKFILE):
-                os.remove(share_objects.SOCKFILE)
-            os.remove(share_objects.PIDFILE)
-else:
-    if os.path.exists(share_objects.SOCKFILE):
-        os.remove(share_objects.SOCKFILE)
+check()
+init()
 
 """
 单元测试笔记

@@ -50,6 +50,8 @@ class Test_DnsCache(unittest.TestCase):
         dnspkg_header = DNSHeader()
         Test_DnsCache.dnspkg.add_question(DNSQuestion('www.flexidns.com'))
         Test_DnsCache.dnspkg.add_answer(RR('www.flexidns.com', ttl=60, rdata=A('192.168.1.1')))
+        Test_DnsCache.dnspkg.ttl = 60
+
         setattr(Test_DnsCache.dnspkg, 'response_header', dnspkg_header)
         self.new_cache.setdata(dnspkg=Test_DnsCache.dnspkg)
 
@@ -71,6 +73,7 @@ class Test_DnsCache_Funciton(unittest.TestCase):
         dnspkg_header = DNSHeader()
         cls.dnspkg.add_question(DNSQuestion('www.flexidns.com'))
         cls.dnspkg.add_answer(RR('www.flexidns.com', ttl=60, rdata=A('192.168.1.1')))
+        cls.dnspkg.ttl = 60
         setattr(cls.dnspkg, 'response_header', dnspkg_header)
 
     def setUp(self) -> None:

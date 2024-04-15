@@ -3,11 +3,11 @@
 
 import asyncio
 import copy
-import time
 import pickle
 import os
 import socket
 import struct
+from time import time
 
 from .dnsclient import query_create_tasklist
 from random import shuffle
@@ -27,9 +27,28 @@ logger = dnsidAdapter(logger, {'dnsinfo': contextvars_dnsinfo})
 
 
 class Dnspkg(DNSRecord):
+    __slots__ = (
+        'ipc_mmap',
+        'configs',
+        'hisotry_status',
+        'sock',
+        'edns0',
+        'header',
+        'response_header',
+        'questions',
+        'rr',
+        'auth',
+        '_ar',
+        'ar',
+        'code_state',
+        'cookie',
+        'rule',
+        'ttl'
+        )
 
     def __init__(self, header, questions, rr=None, auth=None, ar=None, rule=None):
         self.ipc_mmap = share_objects.ipc
+        self.hisotry_status = share_objects.history_pipe_status
         self.configs = configs
         self.sock = None
         self.edns0 = []
@@ -206,6 +225,7 @@ class Dnspkg(DNSRecord):
                     rr.ttl = rrttl
                 else:
                     rrttl = rr.ttl
+                self.ttl = rr.ttl
 
             if auth:
                 logger.debug(f'original auth ttl: {auth.ttl}')
@@ -217,6 +237,7 @@ class Dnspkg(DNSRecord):
                     auth.ttl = rrttl
                 else:
                     rrttl = auth.ttl
+                self.ttl = auth.ttl
 
         self.new_cache.setdata(self)
 
@@ -262,7 +283,7 @@ class Dnspkg(DNSRecord):
     async def get_ttl(self):
         self.ttl = self.cachedata.get('ttl', 0)()
         if self.ttl < 1:
-            logger.debug(f'ttl timeout, use expired reply ttl {self.configs.expired_reply_ttl}')
+            logger.debug(f'ttl: {self.ttl} timeout, use expired reply ttl {self.configs.expired_reply_ttl}')
             self.ttl = self.configs.expired_reply_ttl
             await asyncio.create_task(self.none_cache_method(self, ttl_timeout_status=True))
             self.new_cache.deldata(self.q.qname, self.q.qtype)
@@ -283,20 +304,13 @@ class Dnspkg(DNSRecord):
 
         dnspkg.upserver = dnspkg.configs.dnsservers.get(dnspkg.rule, dnspkg.configs.default_upstream_server)
 
-        if dnspkg.configs.bool_fakeip and dnspkg.rule == dnspkg.configs.fakeip_match and (dnspkg.q.qtype == QTYPE.A or dnspkg.q.qtype == QTYPE.AAAA):
-            # 如果查询域名为fakeip，同时查询类型为A记录或AAAA记录
-            dnspkg.upserver.clear()
-            dnspkg.upserver.append(dnspkg.configs.fakeip_upserver)
-            dnspkg.rule = dnspkg.configs.fakeip_name_servers
-            logger.debug(f'rule in fakeip modify from {dnspkg.rule} to {dnspkg.upserver}')
-
         logger.debug(f'get upserver select: {dnspkg.upserver}, {dnspkg.rule}, client: {dnspkg.client}')
 
         if ttl_timeout_status:
 
             pickle_data = pickle.dumps(dnspkg)
             data_amount = dnspkg.ipc_mmap.write(pickle_data)
-            logger.debug(f'mmap data location: {data_amount}, client: {dnspkg.client}')
+            logger.debug(f'mmap data location: {data_amount}')
 
             ttl_timeout_send.send(data_amount)
             return
@@ -361,19 +375,19 @@ class Dnspkg_Static(DNSRecord):
     client_address = None
 
     __slots__ = (
-        'header', 'questions', 'rr', 'auth', 'ar', 'response_header', 'rcode', '_ar', 'code_state',
-        'configs', 'sockfd', 'question_packet', 'sock', 'client', 'upserver', 'rules', 'ipset_rule',
-        'OPTv4', 'OPTv6', 'OPTCOOKIE', 'rulesearch', 'new_cache', 'cachedata', 'cookie', 'ipc_mmap',
+        'header', 'questions', 'rr', 'auth', 'ar', 'response_header', 'rcode', '_ar',
+        'question_packet', 'sock', 'client', 'upserver', 'rule', 'history_status',
+        'rulesearch', 'new_cache', 'cachedata', 
     )
     def __init__(self, header=None, questions=None, rr=None, auth=None, ar=None, rule=None):
         super().__init__(header=header, questions=questions, rr=rr, auth=auth, ar=ar)
         self.new_cache = new_cache
-        self.rulesearch = rulesearch
         self.sock = None
         self.client = Dnspkg_Static.client_address or None
         self.cachedata = None
         self.rule = rule
         self._ar = []
+        self.hisotry_status = share_objects.history_pipe_status
 
         contextvars_dnsinfo.set(
             {
@@ -399,7 +413,11 @@ class Dnspkg_Static(DNSRecord):
             }
         )
 
-        share_objects.history.append((time.time(), client[0], self.q.qname))
+        if self.hisotry_status:
+            os.write(
+                share_objects.history_pipe_write_fd,
+                pickle.dumps((time(), client[0], QTYPE.get(self.q.qtype), str(self.q.qname)))
+            )
 
         self.cachedata = self.new_cache.get_static(self.q.qname, self.q.qtype)
         if self.cachedata is None:
@@ -428,7 +446,7 @@ class Dnspkg_FakeIP(Dnspkg):
 
     __slots__ = (
         'header', 'questions', 'rr', 'auth', 'ar', 'response_header', 'rcode', '_ar', 'code_state',
-        'configs', 'sockfd', 'question_packet', 'sock', 'client', 'upserver', 'rule', 'ipset_rule',
+        'configs', 'question_packet', 'sock', 'client', 'upserver', 'rule', 'ipset_rule', 'history_status',
         'OPTv4', 'OPTv6', 'OPTCOOKIE', 'rulesearch', 'new_cache', 'cachedata', 'cookie', 'ipc_mmap',
     )
     def __init__(self, header=None, questions=None, rr=None, auth=None, ar=None, rule=None):
@@ -465,7 +483,11 @@ class Dnspkg_FakeIP(Dnspkg):
             }
         )
 
-        share_objects.history.append((time.time(), client[0], self.q.qname))
+        if self.hisotry_status:
+            os.write(
+                share_objects.history_pipe_write_fd,
+                pickle.dumps((time(), client[0], QTYPE.get(self.q.qtype), str(self.q.qname)))
+            )
 
         self.cachedata = self.new_cache.getdata(self.q.qname, self.q.qtype)
         if self.cachedata is not None:
@@ -475,12 +497,11 @@ class Dnspkg_FakeIP(Dnspkg):
             self.a.ttl = self.ttl
             Dnspkg.header_setting(self)
 
-            self.response_header = self.header
             asyncio.create_task(Dnspkg.response_dns_package(self))
             return
         else:
             logger.debug('not cacheed')
-            await asyncio.create_task(self.none_cache_method())
+            await asyncio.create_task(self.none_cache_method(ttl_timeout_status=False))
 
             if len(self.rr) == 0 and len(self.auth) == 0:
             # 上游服务器响应内容为空时，将rcode设置为nxdomain
@@ -500,7 +521,9 @@ class Dnspkg_FakeIP(Dnspkg):
 
     def update_cache(self):
         """覆盖父类"""
+        self.response_header = self.header
         self.update_ttl()
+        self.new_cache.setdata(self)
         logger.debug('update cache')
 
     async def get_ttl(self):
@@ -530,7 +553,9 @@ class Dnspkg_FakeIP(Dnspkg):
             data = await asyncio.create_task(query_create_tasklist(self))
 
         if data is not None:
+            # 为命中缓存时在次添加缓存
             self.response_parse(data)
+            self.update_ttl()
             self.new_cache.setdata(self)
 
 
@@ -538,11 +563,18 @@ class Dnspkg_BlackList(DNSRecord):
 
     client_address = None
 
+    __slots__ = (
+        'header', 'questions', 'rr', 'auth', 'ar', 'response_header', 'rcode', '_ar', 'code_state',
+        'configs', 'question_packet', 'sock', 'client', 'upserver', 'rule', 'ipset_rule', 'history_status',
+        'OPTv4', 'OPTv6', 'OPTCOOKIE', 'rulesearch', 'new_cache', 'cachedata', 'cookie', 'ipc_mmap',
+    )
+
     def __init__(self, header=None, questions=None, rr=None, auth=None, ar=None, rule=None):
         super().__init__(header=header, questions=questions, rr=rr, auth=auth, ar=ar)
         self.configs = configs
         self._ar = []
         self.client = Dnspkg_BlackList.client_address or None
+        self.hisotry_status = share_objects.history_pipe_status
 
         contextvars_dnsinfo.set(
             {
@@ -567,7 +599,11 @@ class Dnspkg_BlackList(DNSRecord):
             }
         )
 
-        share_objects.history.append((time.time(), client[0], self.q.qname))
+        if self.hisotry_status:
+            os.write(
+                share_objects.history_pipe_write_fd,
+                pickle.dumps((time(), client[0], QTYPE.get(self.q.qtype), str(self.q.qname)))
+            )
 
         logger.debug(f'config blacklist rcode: {self.configs.blacklist_rcode}')
         self.response_header = self.header
@@ -580,17 +616,7 @@ class Dnspkg_BlackList(DNSRecord):
                         rdata=CNAME(self.configs.BLACKLIST_MNAME), ttl=self.configs.ttl_max)
                     )
 
-                self.add_auth(
-                    RR(
-                        self.configs.BLACKLIST_MNAME,
-                        QTYPE.SOA,
-                        rdata=SOA(
-                            self.configs.BLACKLIST_MNAME,
-                            self.configs.BLACKLIST_RNAME,
-                            (1800, 1800, 900, 604800, 86400)),
-                            ttl=self.configs.ttl_max
-                        )
-                    )
+                self.add_auth(share_objects.auth_authority)
                 self.header.set_rcode(0)
             case 'format_error':
                 self.header.set_rcode(1)
@@ -608,9 +634,18 @@ class Dnspkg_BlackList(DNSRecord):
         return
 
 
-class Dnspkg_SOA(Dnspkg):
+class Dnspkg_SOA(DNSRecord):
+    __slots__ = (
+        'client',
+        'sock',
+        'hisotry_status',
+        '_ar'
+    )
+
     def __init__(self, header=None, questions=None, rr=None, auth=None, ar=None):
         super().__init__(header=header, questions=questions, rr=rr, auth=auth, ar=ar)
+        self._ar = ar or []
+        self.hisotry_status = share_objects.history_pipe_status
 
     async def handler(self, sock, *, client=None):
         self.client = client
@@ -625,18 +660,30 @@ class Dnspkg_SOA(Dnspkg):
             }
         )
 
-        share_objects.history.append((time.time(), client[0], self.q.qname))
+        if self.hisotry_status:
+            os.write(
+                share_objects.history_pipe_write_fd,
+                pickle.dumps((time(), client[0], QTYPE.get(self.q.qtype), str(self.q.qname)))
+            )
+
+        share_objects.history.append((time(), client[0], self.q.qname))
 
         logger.debug(f'query name in soa list')
         # 请求类型qtype在SOA列表的执行方法
-        self.header_setting(self)
-        asyncio.create_task(self.response_dns_package(self))
+        Dnspkg.header_setting(self)
+        asyncio.create_task(Dnspkg.response_dns_package(self))
         return
 
 
 class QueueHandler(Dnspkg):
 
     client_address = None
+
+    __slots__ = (
+        'header', 'questions', 'rr', 'auth', 'ar', 'response_header', 'rcode', '_ar', 'code_state',
+        'question_packet', 'sock', 'client', 'upserver', 'rule', 'ipset_rule', 'hisotry_status',
+        'OPTv4', 'OPTv6', 'OPTCOOKIE', 'rulesearch', 'new_cache', 'cachedata', 'cookie', 'ipc_mmap',
+    )
 
     def __init__(self, header=None, questions=None, rr=None, auth=None, ar=None, rule=None):
         super().__init__(header=header, questions=questions, rr=rr, auth=auth, ar=ar, rule=rule)
@@ -691,7 +738,11 @@ class QueueHandler(Dnspkg):
         self.client = client
         self.sock = sock
 
-        share_objects.history.append((time.time(), client[0], self.q.qname))
+        if self.hisotry_status:
+            os.write(
+                share_objects.history_pipe_write_fd,
+                pickle.dumps((time(), client[0], QTYPE.get(self.q.qtype), str(self.q.qname)))
+            )
 
         contextvars_dnsinfo.set(
             {
@@ -714,6 +765,7 @@ class QueueHandler(Dnspkg):
             None
             """
 
+            logger.debug('cacheed')
             await self.get_ttl()
             self.set_ttl(self)
             self.header_setting(self)
@@ -722,6 +774,7 @@ class QueueHandler(Dnspkg):
             return
 
         else:
+            logger.debug('not cacheed')
             await asyncio.create_task(self.none_cache_method(self))
 
             if len(self.rr) == 0 and len(self.auth) == 0:
@@ -732,4 +785,3 @@ class QueueHandler(Dnspkg):
             self.header_setting(self)
             asyncio.create_task(self.response_dns_package(self))
             return
-
