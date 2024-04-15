@@ -209,13 +209,10 @@ class ManagerMmap:
         match command.get('cmd'):
             case 'show':
                 if command.get('all'):
-                    datalist = []
                     data_lengths = 0
                     self.mm.seek(0)
-                    for value in self.new_cache.cache_static.values():
-                        datalist.append(value.copy())
-                    for value in self.new_cache.search_cache.values():
-                        datalist.append(value.copy())
+                    datalist = [value.copy() for value in self.new_cache.cache_static.values()]
+                    datalist.extend(value.copy() for value in self.new_cache.search_cache.values())
                     for i in datalist:
                         data_length, data = self.__data_serialization(i)
                         data_lengths += data_length
@@ -310,6 +307,7 @@ class ManagerMmap:
                     data_length=data_length,
                     data=self.tempfile
                     )
+
     def history(self, command: dict) -> bytes:
         """用于域名对应的rule查询或修改
 
@@ -321,14 +319,14 @@ class ManagerMmap:
         """
         logger.debug(f'received command {command}')
 
-        if command.get('all'):
-            data_length, data = self.__data_serialization(share_objects.history.copy())
-            self.__write_mmap(data)
-            logger.debug(f'data length: {data_length}')
-            return self.__response_data(
-                data_length=data_length,
-                data=self.tempfile
-                )
+        share_objects.history_pipe_status = command.get('all')
+        data_length, data = self.__data_serialization(share_objects.history.copy())
+        self.__write_mmap(data)
+        logger.debug(f'data length: {share_objects.history_pipe_status}')
+        return self.__response_data(
+            data_length=data_length,
+            data=self.tempfile
+            )
 
 commandmmap = ManagerMmap()
 

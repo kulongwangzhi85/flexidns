@@ -73,23 +73,26 @@ class Test_Command_history(unittest.TestCase):
         self.qname = 'www.flexidns.com'
         self.dnslabel = DNSLabel(self.qname)
         self.rr = RR(self.qname, ttl=60, rdata=A('192.168.1.1'))
-        self.history = deque([(1712404645.3993819, '::1', DNSLabel(self.qname))], maxlen=500)
+        self.history = deque([1712404645.3993819, '::1', 'SOA', self.qname], maxlen=500)
         self.history_data = pickle.dumps(self.history)
         self.cmd = {'history': {'all': True}}
 
+    @patch('os.read')
+    @patch('os.open')
     @patch('FlexiDNS.command.pickle.loads')
     @patch('FlexiDNS.command.pickle.dumps')
     @patch('FlexiDNS.command.CacheOperate.data_recv')
-    def test_03_history(self, data_recv_mock, pickle_dumps_mock, pickle_loads_mock):
+    def test_03_history(self, data_recv_mock, pickle_dumps_mock, pickle_loads_mock, open, read):
 
         pickle_dumps_mock.return_value=None
         pickle_loads_mock.return_value=self.history
+        true = False
 
-        data_recv_mock.return_value = {
-            'type': None, 'argparse': None, 'data_length': 127, 'data': self.history_data}
         with patch('builtins.print') as print_mock:
+            print_mock.side_effect = KeyboardInterrupt()
             self.command.history(self.cmd)
             print_mock.assert_called()
+        # self.command.history(self.cmd)
 
 if __name__ == '__main__':
     from os import _exit
