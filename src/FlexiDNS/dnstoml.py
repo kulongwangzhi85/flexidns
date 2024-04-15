@@ -14,20 +14,24 @@ import tempfile
 import socket
 import struct
 import mmap
-from os import _exit, urandom, pipe, path
+from os import _exit, urandom, pipe, path, mkfifo
 from multiprocessing import Pipe
 from logging import DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 from IPy import IP
-from dnslib import EDNSOption, QTYPE
+from dnslib import EDNSOption, QTYPE, CNAME, RR, SOA
 
 
 class Share_Objects_Structure:
     # 用于服务需要使用到的共享对象, 并且无法pickle
     # 这些对象无需用户配置
 
+    def __new__(cls, *args, **kwargs):
+        if not hasattr(cls, '__instance'):
+            cls.__instance = super(Share_Objects_Structure, cls).__new__(cls)
+        return cls.__instance
+
     def __init__(self):
-        from .dnsmmap_ipc import CircularBuffer
 
         self.FAKEIP_NAME = 'fakeip'
         self.ttl_timeout_send, self.ttl_timeout_recv = Pipe()
@@ -37,8 +41,7 @@ class Share_Objects_Structure:
         self.ipc_mmap_size: int = 4194304
         self.ipc_mmap = mmap.mmap(-1, self.ipc_mmap_size, flags=mmap.MAP_SHARED)
         self.ipc_01_mmap = mmap.mmap(-1, self.ipc_mmap_size, flags=mmap.MAP_SHARED)
-        self.ipc = CircularBuffer(ipc_mmap=self.ipc_mmap, ipc_mmap_size=self.ipc_mmap_size)
-        self.ipc_01 = CircularBuffer(ipc_mmap=self.ipc_01_mmap, ipc_mmap_size=self.ipc_mmap_size)
+        self.historyfile: str = f'/run/{__package__.lower()}.pipe'
 
         self.LOGLEVELS = {
             'debug': DEBUG,
@@ -53,12 +56,21 @@ class Share_Objects_Structure:
         self.BLACKLIST_RNAME = 'nstld.verisign-grs.com'
         self.DEFAULT_RULE: urandom = urandom(12).hex()
         self.STATIC_RULE: urandom = urandom(12).hex()
-        self.mmapfile: tuple = tempfile.mkstemp(prefix=f'.{__package__.lower()}_', dir='/dev/shm')
         self.LRU_MAXSIZE = 4096
         self.PIDFILE = f'/run/{__package__.lower()}.pid'
         self.SOCKFILE = f"/tmp/{__package__.lower()}.sock"
 
     def init(self):
+        from .dnsmmap_ipc import CircularBuffer
+        import os
+        self.ipc = CircularBuffer(ipc_mmap=self.ipc_mmap, ipc_mmap_size=self.ipc_mmap_size)
+        self.ipc_01 = CircularBuffer(ipc_mmap=self.ipc_01_mmap, ipc_mmap_size=self.ipc_mmap_size)
+
+        self.mmapfile: tuple = tempfile.mkstemp(prefix=f'.{__package__.lower()}_', dir='/dev/shm')
+        self.history_pipe_write = mkfifo(self.historyfile, 0o666)
+        self.history_pipe_write_fd = os.open(self.historyfile, os.O_RDWR | os.O_NONBLOCK | os.O_CREAT | os.O_SYNC)
+
+        self.history_pipe_status = False
 
         if configs.edns0_ipv4_address is not None:
             ipv4_address = configs.edns0_ipv4_address
@@ -87,6 +99,17 @@ class Share_Objects_Structure:
             self.optsv6 = [
                 EDNSOption(8, edns_client_subnet_option)
             ]
+
+        self.auth_authority = RR(
+            self.BLACKLIST_MNAME,
+            QTYPE.SOA,
+            rdata=SOA(
+                self.BLACKLIST_MNAME,
+                self.BLACKLIST_RNAME,
+                (1800, 1800, 900, 604800, 86400)
+            ),
+            ttl=configs.ttl_max
+        )
 
 
 class Default_Configures:

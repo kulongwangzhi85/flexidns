@@ -174,30 +174,24 @@ class CacheOperate:
 
     def history(self, args):
         # 用于history命令查询
-
         message = pickle.dumps(args)
-        recv_data = self.data_recv(message)
-        mm = recv_data.get('data')
-
-        try:
-            mmdata_bytes = pickle.loads(mm)
-        except UnpicklingError as e:
-            mmdata_bytes = []
-            print('error:', e, file=stderr, flush=True)
-
-        # 显示客户端查询历史记录
-        x = PrettyTable()
-        x.field_names = ['time', 'client', 'domain name']
-        for i in mmdata_bytes:
-            if i is not None:
-                x.add_row(
-                    (
-                        datetime.datetime.fromtimestamp(i[0]).strftime('%Y-%m-%d %H:%M:%S.%f'),
-                        i[1],
-                        i[2]
-                    )
+        self.data_recv(message)
+        hisotry = os.open(share_objects.historyfile, os.O_RDONLY)
+        while True:
+            try:
+                data = pickle.loads(os.read(hisotry, 1024))
+                print(datetime.datetime.fromtimestamp(data[0]).strftime('%Y-%m-%d %H:%M:%S.%f'),
+                      data[1].ljust(22),
+                      data[2].ljust(6),
+                      data[3],
+                      flush=True
                 )
-        print(x)
+            except UnpicklingError:
+                continue
+            except KeyboardInterrupt:
+                message = pickle.dumps({'history': {'all': False}})
+                self.data_recv(message)
+                break
 
     def _verify_args(self, args):
         error_string = "~!@#$%^&:;()_+<>,[]\\/{|}"

@@ -186,7 +186,7 @@ class lrucacheout:
     def setdata(self, dnspkg):
 
         if (save_obj := self.search_cache.get(QTYPE.get(dnspkg.q.qtype))) is not None:
-            logger.debug(f'set cache {dnspkg} rcode {RCODE.get(dnspkg.response_header.get_rcode())}')
+            logger.debug(f'set cache {dnspkg} rcode {RCODE.get(dnspkg.response_header.get_rcode())}, ttl: {dnspkg.ttl}')
             tmp_data = save_obj.get(dnspkg.q.qname)
             if tmp_data is None:
                 save_obj.add_many({
@@ -194,7 +194,7 @@ class lrucacheout:
                     'rr': dnspkg.rr,
                     'auth': dnspkg.auth,
                     'rcode': dnspkg.response_header.get_rcode(),
-                    'ttl': dnsttl(dnspkg.a.ttl)
+                    'ttl': dnsttl(dnspkg.ttl)
                     }
                 })
             else:
@@ -203,7 +203,7 @@ class lrucacheout:
                     'rr': dnspkg.rr,
                     'auth': dnspkg.auth,
                     'rcode': dnspkg.response_header.get_rcode(),
-                    'ttl': dnsttl(dnspkg.a.ttl)
+                    'ttl': dnsttl(dnspkg.ttl)
                     }
                 })
         return

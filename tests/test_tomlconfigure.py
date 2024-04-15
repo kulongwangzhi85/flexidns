@@ -41,6 +41,10 @@ class Test_ShareObject(unittest.TestCase):
         self.assertIsInstance(self.share_object.ipc_01, CircularBuffer)
         self.assertIsInstance(self.share_object.ipc_mmap_size, int)
         self.assertGreater(self.share_object.ipc_mmap_size, 1024)
+        self.assertIsInstance(self.share_object.historyfile, str)
+        self.assertIsInstance(self.share_object.history_pipe_status, bool)
+        self.assertTrue(hasattr(self.share_object, 'history_pipe_write'))
+        self.assertTrue(hasattr(self.share_object, 'history_pipe_write_fd'))
 
 
 class Test_TomlConfigure(unittest.TestCase):

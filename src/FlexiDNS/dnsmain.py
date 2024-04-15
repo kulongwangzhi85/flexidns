@@ -46,6 +46,8 @@ def signal_exit_server(signum, frame):
     if local_school.start_server.is_alive():
         local_school.start_server.join()
         local_school.start_server.close()
+    if os.path.exists(share_objects.historyfile):
+        os.remove(share_objects.historyfile)
 
 
 def write_pid_file(pid, PIDFILE):
